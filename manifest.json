@@ -1,0 +1,17 @@
+{
+  "name": "SportSync",
+  "short_name": "SportSync",
+  "description": "Organisez vos sessions de sport entre amis",
+  "start_url": "/?type=once",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%230f1117'/><text y='130' font-size='120' text-anchor='middle' x='96'>⚽</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}

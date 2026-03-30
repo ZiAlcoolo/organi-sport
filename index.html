@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f1117" />
+  <meta name="description" content="Organisez vos sessions de sport entre amis" />
+  <title>SportSync — Sessions entre amis</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+
+  <!-- SheetJS CDN (export .xlsx) -->
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ─── OFFLINE BANNER ─────────────────────────────────────── -->
+  <div id="offline-banner" class="offline-banner hidden">
+    <span class="offline-dot"></span>
+    Mode consultation — modifications désactivées
+  </div>
+
+  <!-- ─── APP SHELL ──────────────────────────────────────────── -->
+  <div id="app">
+
+    <!-- HEADER -->
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="logo">
+          <span class="logo-icon">⚽</span>
+          <span class="logo-text">Sport<strong>Sync</strong></span>
+        </div>
+        <div class="session-badge" id="session-badge">—</div>
+      </div>
+
+      <!-- STEP PROGRESS NAV -->
+      <nav class="steps-nav" id="steps-nav">
+        <button class="step-btn active" data-step="1">
+          <span class="step-num">01</span>
+          <span class="step-label">Disponibilités</span>
+        </button>
+        <div class="step-connector"></div>
+        <button class="step-btn" data-step="2">
+          <span class="step-num">02</span>
+          <span class="step-label">Créneaux</span>
+        </button>
+        <div class="step-connector"></div>
+        <button class="step-btn" data-step="3">
+          <span class="step-num">03</span>
+          <span class="step-label">Session</span>
+        </button>
+      </nav>
+    </header>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="app-main" id="app-main">
+
+      <!-- ══════════════════════════════════════════════
+           ÉTAPE 1 — DISPONIBILITÉS
+      ══════════════════════════════════════════════ -->
+      <section class="step-panel active" id="step-1">
+        <div class="panel-header">
+          <h2>Vos disponibilités</h2>
+          <p class="panel-sub">Indiquez vos créneaux libres pour trouver une date commune.</p>
+        </div>
+
+        <!-- Ajouter sa dispo -->
+        <div class="card">
+          <h3 class="card-title">Ajouter mes disponibilités</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="dispo-name">Votre prénom</label>
+              <input type="text" id="dispo-name" placeholder="ex: Julien" autocomplete="given-name" />
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="dispo-date">Date</label>
+              <input type="date" id="dispo-date" />
+            </div>
+            <div class="form-group">
+              <label for="dispo-time">Heure</label>
+              <input type="time" id="dispo-time" />
+            </div>
+          </div>
+          <button class="btn btn-primary" id="btn-add-dispo">
+            <span>Ajouter ce créneau</span>
+          </button>
+        </div>
+
+        <!-- Tableau des dispos -->
+        <div class="card">
+          <h3 class="card-title">Récapitulatif</h3>
+          <div id="dispo-table-container">
+            <p class="empty-state">Aucune disponibilité pour l'instant.</p>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="step-actions">
+          <button class="btn btn-ghost" id="btn-skip-dispo">Passer cette étape →</button>
+          <button class="btn btn-primary" id="btn-dispo-next">Dispo trouvée, continuer →</button>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════
+           ÉTAPE 2 — CRÉNEAUX DE TERRAINS
+      ══════════════════════════════════════════════ -->
+      <section class="step-panel" id="step-2">
+        <div class="panel-header">
+          <h2>Recherche de créneaux</h2>
+          <p class="panel-sub">Collez une annonce de réservation pour en extraire les créneaux automatiquement.</p>
+        </div>
+
+        <!-- Smart Parser -->
+        <div class="card card-accent">
+          <div class="card-title-row">
+            <h3 class="card-title">✦ Smart Parser</h3>
+            <span class="badge badge-new">IA locale</span>
+          </div>
+          <p class="card-desc">Collez ci-dessous le texte brut copié depuis un site de réservation de terrain.</p>
+          <textarea
+            id="smart-parser-input"
+            class="parser-textarea"
+            placeholder="Ex: Mardi 15 juillet — 20h00 à 21h00 — Terrain synthétique n°3 — 18€/h..."
+            rows="5"
+          ></textarea>
+          <div class="parser-actions">
+            <button class="btn btn-accent" id="btn-parse">Extraire les créneaux</button>
+            <button class="btn btn-ghost btn-sm" id="btn-parse-clear">Effacer</button>
+          </div>
+          <!-- Résultat du parser -->
+          <div id="parser-result" class="parser-result hidden"></div>
+        </div>
+
+        <!-- Créneaux proposés -->
+        <div class="card">
+          <h3 class="card-title">Créneaux proposés</h3>
+          <div id="slots-container">
+            <p class="empty-state">Aucun créneau ajouté pour l'instant.</p>
+          </div>
+          <button class="btn btn-outline btn-sm" id="btn-add-slot-manual" style="margin-top:1rem">
+            + Ajouter manuellement
+          </button>
+        </div>
+
+        <!-- Météo -->
+        <div class="card card-weather" id="weather-card">
+          <h3 class="card-title">🌤 Météo du jour sélectionné</h3>
+          <div id="weather-content">
+            <p class="empty-state">Sélectionnez un créneau pour voir la météo.</p>
+          </div>
+        </div>
+
+        <div class="step-actions">
+          <button class="btn btn-ghost" id="btn-slots-back">← Retour</button>
+          <button class="btn btn-primary" id="btn-slots-next">Créneau retenu, finaliser →</button>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════
+           ÉTAPE 3 — SESSION FINALE
+      ══════════════════════════════════════════════ -->
+      <section class="step-panel" id="step-3">
+        <div class="panel-header">
+          <h2>Finalisation</h2>
+          <p class="panel-sub">Confirmez les détails et gérez les inscriptions.</p>
+        </div>
+
+        <!-- Infos réservation -->
+        <div class="card">
+          <h3 class="card-title">Infos de la réservation</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="session-date">Date &amp; heure</label>
+              <input type="datetime-local" id="session-date" />
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="session-venue">Lieu / Terrain</label>
+              <input type="text" id="session-venue" placeholder="ex: City Padel Bordeaux" />
+            </div>
+            <div class="form-group">
+              <label for="session-price">Prix total (€)</label>
+              <input type="number" id="session-price" placeholder="ex: 36" min="0" step="0.5" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="session-notes">Notes</label>
+              <input type="text" id="session-notes" placeholder="Parking, code de la porte..." />
+            </div>
+          </div>
+          <button class="btn btn-primary" id="btn-save-session">Enregistrer la session</button>
+        </div>
+
+        <!-- Inscriptions -->
+        <div class="card">
+          <h3 class="card-title">Inscrits <span id="player-count" class="count-badge">0</span></h3>
+          <div id="players-list">
+            <p class="empty-state">Aucun inscrit pour l'instant.</p>
+          </div>
+          <div class="form-row two-col" style="margin-top:1rem">
+            <div class="form-group">
+              <input type="text" id="new-player-name" placeholder="Prénom" />
+            </div>
+            <button class="btn btn-outline" id="btn-add-player">+ Inscrire</button>
+          </div>
+        </div>
+
+        <!-- Liste d'attente -->
+        <div class="card">
+          <h3 class="card-title">Liste d'attente <span id="waitlist-count" class="count-badge count-badge--grey">0</span></h3>
+          <div id="waitlist-container">
+            <p class="empty-state">Liste d'attente vide.</p>
+          </div>
+        </div>
+
+        <!-- Exports -->
+        <div class="card card-export">
+          <h3 class="card-title">Exporter</h3>
+          <div class="export-actions">
+            <button class="btn btn-export" id="btn-export-xlsx">
+              <span class="export-icon">📊</span> Export Excel (.xlsx)
+            </button>
+            <button class="btn btn-export" id="btn-export-ics">
+              <span class="export-icon">📅</span> Ajouter au calendrier (.ics)
+            </button>
+          </div>
+        </div>
+
+        <div class="step-actions">
+          <button class="btn btn-ghost" id="btn-final-back">← Retour</button>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- SYNC STATUS -->
+    <footer class="app-footer">
+      <span id="sync-status" class="sync-status">⏳ Vérification…</span>
+      <button class="btn btn-ghost btn-xs" id="btn-force-sync">Synchroniser</button>
+    </footer>
+
+  </div><!-- /#app -->
+
+  <!-- MODAL — Ajout manuel créneau -->
+  <div class="modal-overlay hidden" id="modal-slot">
+    <div class="modal">
+      <h3>Ajouter un créneau</h3>
+      <div class="form-group"><label>Date</label><input type="date" id="modal-slot-date" /></div>
+      <div class="form-row two-col">
+        <div class="form-group"><label>Début</label><input type="time" id="modal-slot-start" /></div>
+        <div class="form-group"><label>Fin</label><input type="time" id="modal-slot-end" /></div>
+      </div>
+      <div class="form-row two-col">
+        <div class="form-group"><label>Lieu</label><input type="text" id="modal-slot-venue" placeholder="Terrain n°2" /></div>
+        <div class="form-group"><label>Prix (€)</label><input type="number" id="modal-slot-price" placeholder="18" /></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btn-modal-cancel">Annuler</button>
+        <button class="btn btn-primary" id="btn-modal-confirm">Ajouter</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
