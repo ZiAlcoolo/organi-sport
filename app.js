@@ -1,35 +1,15 @@
 /**
  * ═══════════════════════════════════════════════════════════
- * SPORTSYNC — app.js
- * Architecture : Vanilla JS + IndexedDB + Google Apps Script
+ * SPORTSYNC — app.js  v3  (jQuery)
  * ═══════════════════════════════════════════════════════════
- *
- * 📋 GUIDE DE CONFIGURATION — Google Apps Script (proxy API)
- * ──────────────────────────────────────────────────────────
- * Avantages vs appel direct à l'API Sheets v4 :
- *   ✅ Aucune clé API exposée côté client
- *   ✅ Lecture ET écriture sans OAuth2 côté navigateur
- *   ✅ Le script tourne avec les droits du compte Google propriétaire
- *   ✅ CORS géré nativement par le déploiement "Web App"
- *
- * Étapes de déploiement :
- *   1. Ouvrir votre Google Sheet
- *   2. Extensions → Apps Script
- *   3. Coller le contenu de `apps-script.gs` (fourni avec ce projet)
- *   4. Déployer : Déployer → Nouveau déploiement
- *        - Type : Application Web
- *        - Exécuter en tant que : Moi (votre compte Google)
- *        - Accès : Tout le monde (ou "Tout le monde, même anonyme")
- *   5. Copier l'URL de déploiement obtenue (format script.google.com/…/exec)
- *   6. Coller cette URL dans GAS_URL ci-dessous
- *
- * ⚠️  À chaque modification du script .gs, créer un NOUVEAU déploiement
- *      (les URLs de déploiement sont versionnées et immuables).
- *
- * 📋 GUIDE DE CONFIGURATION — Open-Meteo
- * ─────────────────────────────────────────
- * Aucune clé API nécessaire ! Open-Meteo est gratuit et sans auth.
- * ═══════════════════════════════════════════════════════════
+ * Corrections v3 :
+ *  - state.session chargé depuis IDB au boot
+ *  - renderSession() : mode lecture + mode édition
+ *  - maxPlayers configurable par session (champ + logique addPlayer)
+ *  - Recherche clubs via GAS (autocomplétion)
+ *  - addPlayer respecte session.maxPlayers
+ *  - importRemoteData relance renderSession()
+ *  - Formats dates normalisés (YYYY-MM-DD <-> datetime-local)
  */
 
 // ═══════════════════════════════════════════════════
@@ -37,1219 +17,642 @@
 // ═══════════════════════════════════════════════════
 
 const CONFIG = {
-  // ── Google Apps Script ───────────────────────────
-  // URL obtenue après déploiement du script lié à votre Sheet.
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbwv3Zz33d3Uq3Sfwhd7egCkapkoaOp-CiXKmIIX_8jZJWDvrQin8PuBrr5GNCzxF0gp/exec',
-
-  // ── Open-Meteo ───────────────────────────────────
-  METEO: {
-    // Bordeaux par défaut — remplacez par les coordonnées de votre ville
-    DEFAULT_LAT: 44.8378,
-    DEFAULT_LON: -0.5792,
-  },
-
-  // ── IndexedDB ────────────────────────────────────
-  IDB: {
-    NAME:    'sportsync',
-    VERSION: 1,
-    STORES:  ['session', 'dispos', 'slots', 'players'],
-  },
-
-  // ── Session ──────────────────────────────────────
-  MAX_PLAYERS: 10,    // Joueurs max avant liste d'attente
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbxytg4ITWhG06Ah4DuujkD9Bpkt6Tsfk6Oz9O2mdsraigudDKlhK_6ElBt5z0zm9S0C/exec',
+  METEO:   { DEFAULT_LAT: 44.8378, DEFAULT_LON: -0.5792 },
+  IDB:     { NAME:'sportsync', VERSION:3, STORES:['session','dispos','slots','players'] },
 };
 
 // ═══════════════════════════════════════════════════
-// 2. STATE GLOBAL
+// 2. STATE
 // ═══════════════════════════════════════════════════
 
 const state = {
-  sessionType: 'once',    // 'once' | 'recurring'
-  sessionId:   null,      // UUID pour les sessions uniques
-  currentStep: 1,
-  isOffline:   !navigator.onLine,
-  isSyncing:   false,
-  db:          null,       // instance IndexedDB
-
-  // Données locales
-  dispos:   [],
-  slots:    [],
-  players:  [],
-  waitlist: [],
-  session:  null,
+  sessionType:'once', sessionId:null, currentStep:1,
+  isOffline:!navigator.onLine, isSyncing:false, db:null,
+  dispos:[], slots:[], players:[], waitlist:[], session:null,
 };
 
 // ═══════════════════════════════════════════════════
-// 3. INDEXEDDB — Initialisation & CRUD
+// 3. INDEXEDDB
 // ═══════════════════════════════════════════════════
 
-/**
- * Initialise IndexedDB et crée les object stores nécessaires.
- * @returns {Promise<IDBDatabase>}
- */
 function initIDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(CONFIG.IDB.NAME, CONFIG.IDB.VERSION);
-
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
-      CONFIG.IDB.STORES.forEach(storeName => {
-        if (!db.objectStoreNames.contains(storeName)) {
-          db.createObjectStore(storeName, { keyPath: 'id', autoIncrement: true });
-        }
+      CONFIG.IDB.STORES.forEach(name => {
+        if (!db.objectStoreNames.contains(name))
+          db.createObjectStore(name, { keyPath:'id', autoIncrement:true });
       });
-      // Store spécial pour les métadonnées (timestamp de synchro, etc.)
-      if (!db.objectStoreNames.contains('meta')) {
-        db.createObjectStore('meta', { keyPath: 'key' });
-      }
+      if (!db.objectStoreNames.contains('meta'))
+        db.createObjectStore('meta', { keyPath:'key' });
     };
-
-    req.onsuccess  = (e) => resolve(e.target.result);
-    req.onerror    = (e) => reject(e.target.error);
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror   = (e) => reject(e.target.error);
   });
 }
 
-/**
- * Écrit un enregistrement dans un store.
- * @param {string} storeName
- * @param {object} data
- */
-function idbPut(storeName, data) {
-  return new Promise((resolve, reject) => {
-    const tx  = state.db.transaction(storeName, 'readwrite');
-    const req = tx.objectStore(storeName).put(data);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror   = () => reject(req.error);
+function idbPut(store, data) {
+  return new Promise((res,rej) => {
+    const req = state.db.transaction(store,'readwrite').objectStore(store).put(data);
+    req.onsuccess = () => res(req.result);
+    req.onerror   = () => rej(req.error);
   });
 }
-
-/**
- * Lit tous les enregistrements d'un store.
- * @param {string} storeName
- * @returns {Promise<Array>}
- */
-function idbGetAll(storeName) {
-  return new Promise((resolve, reject) => {
-    const tx  = state.db.transaction(storeName, 'readonly');
-    const req = tx.objectStore(storeName).getAll();
-    req.onsuccess = () => resolve(req.result);
-    req.onerror   = () => reject(req.error);
+function idbGetAll(store) {
+  return new Promise((res,rej) => {
+    const req = state.db.transaction(store,'readonly').objectStore(store).getAll();
+    req.onsuccess = () => res(req.result||[]);
+    req.onerror   = () => rej(req.error);
   });
 }
-
-/**
- * Supprime un enregistrement par clé.
- * @param {string} storeName
- * @param {number} id
- */
-function idbDelete(storeName, id) {
-  return new Promise((resolve, reject) => {
-    const tx  = state.db.transaction(storeName, 'readwrite');
-    const req = tx.objectStore(storeName).delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror   = () => reject(req.error);
+function idbDelete(store, id) {
+  return new Promise((res,rej) => {
+    const req = state.db.transaction(store,'readwrite').objectStore(store).delete(id);
+    req.onsuccess = () => res();
+    req.onerror   = () => rej(req.error);
   });
 }
-
-/**
- * Vide complètement un store (après synchro depuis Sheets).
- * @param {string} storeName
- */
-function idbClear(storeName) {
-  return new Promise((resolve, reject) => {
-    const tx  = state.db.transaction(storeName, 'readwrite');
-    const req = tx.objectStore(storeName).clear();
-    req.onsuccess = () => resolve();
-    req.onerror   = () => reject(req.error);
+function idbClear(store) {
+  return new Promise((res,rej) => {
+    const req = state.db.transaction(store,'readwrite').objectStore(store).clear();
+    req.onsuccess = () => res();
+    req.onerror   = () => rej(req.error);
   });
 }
 
 // ═══════════════════════════════════════════════════
-// 4. GOOGLE APPS SCRIPT — Couche API proxy
-// ═══════════════════════════════════════════════════
-//
-// Toutes les communications avec le Sheet passent par une seule
-// fonction : gasRequest(). Elle envoie des requêtes GET ou POST
-// à l'URL de déploiement Apps Script, qui fait office de proxy
-// sécurisé entre le navigateur et Google Sheets.
-//
-// Protocole :
-//   GET  ?action=getData            → reçoit { timestamp, dispos, slots, players, session }
-//   POST body JSON { action, ... }  → écrit dans le Sheet, reçoit { ok, timestamp }
-//
-// Actions POST disponibles (définies dans apps-script.gs) :
-//   addDispo    { name, date, time }
-//   deleteDispo { id }
-//   addSlot     { date, start, end, venue, price }
-//   voteSlot    { id, delta }          (+1 ou -1)
-//   addPlayer   { name, status }
-//   removePlayer{ id }
-//   saveSession { date, venue, price, notes }
+// 4. GOOGLE APPS SCRIPT — Proxy (jQuery.ajax)
 // ═══════════════════════════════════════════════════
 
-/**
- * Requête générique vers le proxy Apps Script.
- *
- * @param {'GET'|'POST'} method
- * @param {object}       [body]   - payload JSON pour les POST
- * @param {object}       [params] - query params supplémentaires pour les GET
- * @returns {Promise<object>}     - réponse JSON du script
- */
-async function gasRequest(method, body = null, params = {}) {
-  if (!CONFIG.GAS_URL || CONFIG.GAS_URL === 'VOTRE_URL_APPS_SCRIPT_ICI') {
-    throw new Error('GAS_URL non configurée — collez l\'URL de déploiement Apps Script dans CONFIG.GAS_URL');
-  }
+function gasRequest(method, body, params) {
+  params = params || {};
+  if (!CONFIG.GAS_URL || CONFIG.GAS_URL === 'VOTRE_URL_APPS_SCRIPT_ICI')
+    return $.Deferred().reject(new Error('GAS_URL non configurée')).promise();
 
-  let url = CONFIG.GAS_URL;
+  if (method === 'GET')
+    return $.ajax({ url:CONFIG.GAS_URL+'?'+$.param(params), method:'GET', dataType:'json' });
 
-  if (method === 'GET') {
-    // Apps Script GET : les paramètres passent en query string
-    const qs = new URLSearchParams({ ...params });
-    url = `${url}?${qs.toString()}`;
-
-    const resp = await fetch(url, {
-      method:  'GET',
-      redirect: 'follow', // indispensable : Apps Script redirige vers l'URL finale
-    });
-    if (!resp.ok) throw new Error(`GAS GET error ${resp.status}`);
-    return resp.json();
-  }
-
-  // POST — Apps Script reçoit le JSON dans e.postData.contents
-  const resp = await fetch(url, {
-    method:  'POST',
-    redirect: 'follow',
-    headers: { 'Content-Type': 'text/plain' }, // ⚠️ Apps Script ne parse pas application/json en mode anonyme
-    body:    JSON.stringify(body),
-  });
-  if (!resp.ok) throw new Error(`GAS POST error ${resp.status}`);
-  return resp.json();
+  return $.ajax({ url:CONFIG.GAS_URL, method:'POST', contentType:'text/plain',
+                  data:JSON.stringify(body||{}), dataType:'json' });
 }
 
-/**
- * Récupère toutes les données du Sheet en un seul appel GET.
- * Le script Apps Script renvoie un objet structuré :
- * {
- *   timestamp : <number>,
- *   dispos    : [{ id, name, date, time, createdAt }, …],
- *   slots     : [{ id, date, start, end, venue, price, votes }, …],
- *   players   : [{ id, name, status }, …],
- *   session   : { date, venue, price, notes } | null
- * }
- * @returns {Promise<object>}
- */
-async function gasFetchAll() {
-  return gasRequest('GET', null, { action: 'getData', sessionId: state.sessionId || 'recurring' });
+function gasFetchAll()        { return gasRequest('GET', null, { action:'getData', sessionId:state.sessionId||'recurring' }); }
+function gasWrite(action, pl) { return gasRequest('POST', Object.assign({ action, sessionId:state.sessionId||'recurring' }, pl||{})); }
+
+function gasSearchClubs(q) {
+  return gasRequest('GET', null, { action:'searchClubs', q:q });
 }
 
-/**
- * Envoie une action d'écriture au proxy Apps Script.
- * @param {string} action  - nom de l'action (ex: 'addDispo')
- * @param {object} payload - données associées
- * @returns {Promise<{ ok: boolean, timestamp: number }>}
- */
-async function gasWrite(action, payload = {}) {
-  return gasRequest('POST', { action, sessionId: state.sessionId || 'recurring', ...payload });
-}
+// ── Synchronisation ──────────────────────────────
 
-/**
- * Vérifie le timestamp distant et synchronise IndexedDB si nécessaire.
- *
- * Logique :
- *   1. GET getData → reçoit { timestamp, dispos, slots, players, session }
- *   2. Compare timestamp distant avec celui stocké en IDB meta.lastSync
- *   3. Si distant > local  → écrase IDB avec les données reçues
- *   4. Si identique        → rien à faire, IDB déjà à jour
- *   5. Si offline          → mode consultation (pas de requête réseau)
- */
 async function syncFromSheets() {
-  if (state.isOffline) {
-    setSyncStatus('📵 Hors ligne — mode consultation', 'err');
-    return;
-  }
-
+  if (state.isOffline) { setSyncStatus('📵 Hors ligne','err'); return; }
   setSyncStatus('⏳ Synchronisation…');
   state.isSyncing = true;
-
   try {
-    // Récupérer toutes les données + timestamp en un seul aller-retour
     const remote = await gasFetchAll();
-
-    // Lire le timestamp local depuis IDB
-    const localMeta = await new Promise(resolve => {
-      const tx  = state.db.transaction('meta', 'readonly');
-      const req = tx.objectStore('meta').get('lastSync');
-      req.onsuccess = () => resolve(req.result);
-      req.onerror   = () => resolve(null);
+    const localMeta = await new Promise(res => {
+      const req = state.db.transaction('meta','readonly').objectStore('meta').get('lastSync');
+      req.onsuccess = () => res(req.result);
+      req.onerror   = () => res(null);
     });
-    const localTs  = localMeta?.value || 0;
+    const localTs  = (localMeta && localMeta.value) || 0;
     const remoteTs = Number(remote.timestamp) || 0;
-
     if (remoteTs > localTs) {
-      console.log('[Sync] Sheet plus récent, import en cours…');
       await importRemoteData(remote);
-      await idbPut('meta', { key: 'lastSync', value: remoteTs });
-      setSyncStatus(`✅ Mis à jour — ${new Date(remoteTs).toLocaleTimeString()}`, 'ok');
+      await idbPut('meta', { key:'lastSync', value:remoteTs });
+      setSyncStatus('✅ Mis à jour — '+new Date(remoteTs).toLocaleTimeString(),'ok');
     } else {
-      setSyncStatus(`✅ À jour — ${new Date().toLocaleTimeString()}`, 'ok');
+      setSyncStatus('✅ À jour — '+new Date().toLocaleTimeString(),'ok');
     }
-
-  } catch (err) {
-    console.error('[Sync] Erreur:', err);
-    // Si GAS_URL non configurée, on le signale clairement
-    const msg = err.message.includes('GAS_URL')
-      ? '⚙️ GAS_URL non configurée'
-      : '⚠️ Synchro échouée — données locales';
-    setSyncStatus(msg, 'err');
+  } catch(err) {
+    console.error('[Sync]', err);
+    setSyncStatus(String(err.message||err).includes('GAS_URL') ? '⚙️ GAS_URL non configurée' : '⚠️ Synchro échouée','err');
   }
-
   state.isSyncing = false;
 }
 
-/**
- * Écrase IndexedDB avec les données reçues du proxy Apps Script.
- * @param {object} remote - réponse de gasFetchAll()
- */
 async function importRemoteData(remote) {
-  // ── Disponibilités ──────────────────────────────
+  // ── Dispos ──
   await idbClear('dispos');
-  for (const d of (remote.dispos || [])) {
+  for (const d of (remote.dispos||[])) {
     await idbPut('dispos', {
-      id:        Number(d.id) || Date.now(),
-      name:      d.name      || '',
-      date:      d.date      || '',
-      time:      d.time      || '',
-      createdAt: d.createdAt || '',
+      id: String(d.id)||String(Date.now()), name:d.name||'',
+      date:d.date||'', slot:d.slot||'', state:d.state||'', sessionId:d.sessionId||'',
+      _compositeKey: (d.sessionId||'')+'::'+d.name+'::'+d.date+'::'+d.slot,
     });
   }
-
-  // ── Créneaux ────────────────────────────────────
+  // ── Slots ──
   await idbClear('slots');
-  for (const s of (remote.slots || [])) {
-    await idbPut('slots', {
-      id:    Number(s.id) || Date.now(),
-      date:  s.date  || '',
-      start: s.start || '',
-      end:   s.end   || '',
-      venue: s.venue || '',
-      price: s.price || '',
-      votes: Number(s.votes) || 0,
-    });
-  }
-
-  // ── Joueurs ─────────────────────────────────────
+  for (const s of (remote.slots||[]))
+    await idbPut('slots', { id:String(s.id), date:s.date||'', start:s.start||'', end:s.end||'',
+                            venue:s.venue||'', price:s.price||'', votes:Number(s.votes)||0 });
+  // ── Players ──
   await idbClear('players');
-  for (const p of (remote.players || [])) {
-    await idbPut('players', {
-      id:     Number(p.id) || Date.now(),
-      name:   p.name   || '',
-      status: p.status || 'player',
-    });
-  }
-
-  // ── Session ──────────────────────────────────────
+  for (const p of (remote.players||[]))
+    await idbPut('players', { id:String(p.id), name:p.name||'', status:p.status||'player' });
+  // ── Session ──
   if (remote.session) {
-    await idbPut('session', { id: 'current', ...remote.session });
+    const s = remote.session;
+    await idbPut('session', { id:'current', date:s.date||'', venue:s.venue||'',
+      address:s.address||'', mapsUrl:s.mapsUrl||'', bookingUrl:s.bookingUrl||'',
+      price:s.price||'', notes:s.notes||'', maxPlayers:Number(s.maxPlayers)||10 });
   }
-
-  // Recharge le state depuis IDB
   await loadStateFromIDB();
 }
 
-/**
- * Charge les données depuis IDB dans le state local.
- */
 async function loadStateFromIDB() {
-  state.dispos   = await idbGetAll('dispos');
-  state.slots    = await idbGetAll('slots');
-  const all      = await idbGetAll('players');
-  state.players  = all.filter(p => p.status === 'player');
-  state.waitlist = all.filter(p => p.status === 'waitlist');
-  renderAll();
+  state.dispos  = await idbGetAll('dispos');
+  state.slots   = await idbGetAll('slots');
+  const all     = await idbGetAll('players');
+  state.players  = all.filter(p => p.status==='player');
+  state.waitlist = all.filter(p => p.status==='waitlist');
+
+  // ── Session : récupérer depuis IDB ──
+  const sessions = await idbGetAll('session');
+  state.session  = sessions.find(s => s.id==='current') || null;
+
+  renderSlots();
+  renderPlayers();
+  renderSession();
+  if (window.SportSyncDispo && typeof window.SportSyncDispo.refresh === 'function')
+    window.SportSyncDispo.refresh();
 }
 
 // ═══════════════════════════════════════════════════
-// 5. SMART PARSER — Extraction de créneaux
+// 5. SMART PARSER
 // ═══════════════════════════════════════════════════
 
-/**
- * Parse du texte brut collé depuis un site de réservation.
- * Retourne un tableau de créneaux potentiels sous forme d'objets JSON.
- *
- * Stratégie multi-passes :
- *  1. Extraction des dates (formats FR + ISO)
- *  2. Extraction des heures (HH:MM ou HHhMM)
- *  3. Extraction des prix (€, EUR)
- *  4. Extraction du lieu (mots-clés : terrain, court, salle…)
- *
- * @param {string} rawText
- * @returns {Array<{date, start, end, venue, price}>}
- */
 function smartParse(rawText) {
-  const results = [];
-  const text    = rawText.trim();
-
+  const results=[], text=rawText.trim();
   if (!text) return results;
-
-  // ── Patterns ─────────────────────────────────────
-
-  // Dates françaises : "15 juillet", "15/07/2025", "15-07-2025", "mardi 15 juillet 2025"
-  const DATE_FR_LONG = /(?:lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)?\s*(\d{1,2})\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)(?:\s+(\d{4}))?/gi;
-  const DATE_NUMERIC = /(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/g;
-  const DATE_ISO     = /(\d{4})-(\d{2})-(\d{2})/g;
-
-  // Heures : "20h00", "20:00", "20h", "20h30 - 21h30"
-  const TIME_RANGE   = /(\d{1,2})[h:](\d{0,2})\s*[-–à]\s*(\d{1,2})[h:](\d{0,2})/gi;
-  const TIME_SINGLE  = /(\d{1,2})[h:](\d{2})/gi;
-
-  // Prix : "18€", "18 €", "18.50€", "18,50 EUR"
-  const PRICE        = /(\d+[.,]?\d*)\s*(?:€|EUR|euros?)/gi;
-
-  // Lieu : mots-clés communs
-  const VENUE_KW     = /(?:terrain|court|salle|gymnase|stade|complexe|halle|piste|piscine|dojo)\s+(?:n[°o]?\s*\d+|[a-zÀ-ÿ\s]+)?/gi;
-
-  // ── Extraction des blocs de créneaux ─────────────
-  // On découpe le texte en "blocs" séparés par lignes vides ou séparateurs
-  const blocks = text.split(/\n{2,}|---+|===+|•{2,}/);
-
-  for (const block of blocks) {
-    if (block.trim().length < 5) continue;
-
-    const slot = {
-      date:  '',
-      start: '',
-      end:   '',
-      venue: '',
-      price: '',
-      raw:   block.trim(),
-    };
-
-    // Chercher une date longue FR
-    const matchDateFR = DATE_FR_LONG.exec(block);
-    DATE_FR_LONG.lastIndex = 0;
-    if (matchDateFR) {
-      const mois = {
-        janvier:'01', février:'02', mars:'03', avril:'04',
-        mai:'05', juin:'06', juillet:'07', août:'08',
-        septembre:'09', octobre:'10', novembre:'11', décembre:'12'
-      };
-      const jour = matchDateFR[1].padStart(2, '0');
-      const mo   = mois[matchDateFR[2].toLowerCase()] || '01';
-      const an   = matchDateFR[3] || new Date().getFullYear();
-      slot.date  = `${an}-${mo}-${jour}`;
-    }
-
-    // Fallback : date numérique
-    if (!slot.date) {
-      const matchISO = DATE_ISO.exec(block);
-      DATE_ISO.lastIndex = 0;
-      if (matchISO) {
-        slot.date = `${matchISO[1]}-${matchISO[2]}-${matchISO[3]}`;
-      }
-    }
-
-    if (!slot.date) {
-      const matchNum = DATE_NUMERIC.exec(block);
-      DATE_NUMERIC.lastIndex = 0;
-      if (matchNum) {
-        const j  = matchNum[1].padStart(2, '0');
-        const m  = matchNum[2].padStart(2, '0');
-        const an = matchNum[3]
-          ? (matchNum[3].length === 2 ? '20' + matchNum[3] : matchNum[3])
-          : new Date().getFullYear();
-        slot.date = `${an}-${m}-${j}`;
-      }
-    }
-
-    // Chercher une plage horaire (20h00 - 21h00)
-    const matchTimeRange = TIME_RANGE.exec(block);
-    TIME_RANGE.lastIndex = 0;
-    if (matchTimeRange) {
-      slot.start = `${matchTimeRange[1].padStart(2,'0')}:${(matchTimeRange[2] || '00').padStart(2,'0')}`;
-      slot.end   = `${matchTimeRange[3].padStart(2,'0')}:${(matchTimeRange[4] || '00').padStart(2,'0')}`;
-    } else {
-      // Chercher une heure simple
-      const times = [...block.matchAll(TIME_SINGLE)];
-      if (times.length >= 1) {
-        slot.start = `${times[0][1].padStart(2,'0')}:${(times[0][2] || '00').padStart(2,'0')}`;
-      }
-      if (times.length >= 2) {
-        slot.end = `${times[1][1].padStart(2,'0')}:${(times[1][2] || '00').padStart(2,'0')}`;
-      }
-    }
-
-    // Chercher le prix
-    const matchPrice = PRICE.exec(block);
-    PRICE.lastIndex = 0;
-    if (matchPrice) {
-      slot.price = matchPrice[1].replace(',', '.') + '€';
-    }
-
-    // Chercher le lieu
-    const matchVenue = VENUE_KW.exec(block);
-    VENUE_KW.lastIndex = 0;
-    if (matchVenue) {
-      slot.venue = matchVenue[0].trim();
-    }
-
-    // N'ajouter que si on a au moins une date OU une heure
-    if (slot.date || slot.start) {
-      results.push(slot);
-    }
+  const DATE_FR=/(?:lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)?\s*(\d{1,2})\s+(janvier|f[eé]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[eé]cembre)(?:\s+(\d{4}))?/gi;
+  const DATE_NUM=/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/g;
+  const DATE_ISO=/(\d{4})-(\d{2})-(\d{2})/g;
+  const TIME_RNG=/(\d{1,2})[h:](\d{0,2})\s*[-–à]\s*(\d{1,2})[h:](\d{0,2})/gi;
+  const TIME_SGL=/(\d{1,2})[h:](\d{2})/gi;
+  const PRICE=/(\d+[.,]?\d*)\s*(?:€|EUR|euros?)/gi;
+  const VENUE=/(?:terrain|court|salle|gymnase|stade|complexe|halle|piste|piscine|dojo)\s+(?:n[°o]?\s*\d+|[a-zÀ-ÿ\s]+)?/gi;
+  const MOIS={'janvier':'01','février':'02','fevrier':'02','mars':'03','avril':'04','mai':'05',
+               'juin':'06','juillet':'07','août':'08','aout':'08','septembre':'09','octobre':'10',
+               'novembre':'11','décembre':'12','decembre':'12'};
+  for (const block of text.split(/\n{2,}|---+|===+/)) {
+    if (block.trim().length<5) continue;
+    const s={date:'',start:'',end:'',venue:'',price:'',raw:block.trim()};
+    const mDF=DATE_FR.exec(block); DATE_FR.lastIndex=0;
+    if(mDF) s.date=`${mDF[3]||new Date().getFullYear()}-${MOIS[mDF[2].toLowerCase()]||'01'}-${mDF[1].padStart(2,'0')}`;
+    if(!s.date){const m=DATE_ISO.exec(block);DATE_ISO.lastIndex=0;if(m)s.date=`${m[1]}-${m[2]}-${m[3]}`;}
+    if(!s.date){const m=DATE_NUM.exec(block);DATE_NUM.lastIndex=0;
+      if(m)s.date=`${m[3]?(m[3].length===2?'20'+m[3]:m[3]):new Date().getFullYear()}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;}
+    const mTR=TIME_RNG.exec(block);TIME_RNG.lastIndex=0;
+    if(mTR){s.start=`${mTR[1].padStart(2,'0')}:${(mTR[2]||'00').padStart(2,'0')}`;s.end=`${mTR[3].padStart(2,'0')}:${(mTR[4]||'00').padStart(2,'0')}`;}
+    else{const ts=[...block.matchAll(TIME_SGL)];if(ts[0])s.start=`${ts[0][1].padStart(2,'0')}:${ts[0][2].padStart(2,'0')}`;if(ts[1])s.end=`${ts[1][1].padStart(2,'0')}:${ts[1][2].padStart(2,'0')}`;}
+    const mP=PRICE.exec(block);PRICE.lastIndex=0;if(mP)s.price=mP[1].replace(',','.')+'€';
+    const mV=VENUE.exec(block);VENUE.lastIndex=0;if(mV)s.venue=mV[0].trim();
+    if(s.date||s.start) results.push(s);
   }
-
-  // Si aucun bloc distinct n'a été trouvé, essayer sur le texte entier
-  if (results.length === 0) {
-    const fallback = { date:'', start:'', end:'', venue:'', price:'', raw: text };
-
-    const mDate = DATE_FR_LONG.exec(text);
-    DATE_FR_LONG.lastIndex = 0;
-    if (mDate) {
-      const mois = { janvier:'01', février:'02', mars:'03', avril:'04', mai:'05', juin:'06', juillet:'07', août:'08', septembre:'09', octobre:'10', novembre:'11', décembre:'12' };
-      fallback.date = `${mDate[3] || new Date().getFullYear()}-${mois[mDate[2].toLowerCase()]}-${mDate[1].padStart(2,'0')}`;
-    }
-
-    const mRange = TIME_RANGE.exec(text);
-    TIME_RANGE.lastIndex = 0;
-    if (mRange) {
-      fallback.start = `${mRange[1].padStart(2,'0')}:${(mRange[2]||'00').padStart(2,'0')}`;
-      fallback.end   = `${mRange[3].padStart(2,'0')}:${(mRange[4]||'00').padStart(2,'0')}`;
-    }
-
-    const mPrice = PRICE.exec(text);
-    PRICE.lastIndex = 0;
-    if (mPrice) fallback.price = mPrice[1] + '€';
-
-    const mVenue = VENUE_KW.exec(text);
-    VENUE_KW.lastIndex = 0;
-    if (mVenue) fallback.venue = mVenue[0].trim();
-
-    if (fallback.date || fallback.start) results.push(fallback);
-  }
-
   return results;
 }
 
 // ═══════════════════════════════════════════════════
-// 6. OPEN-METEO — Météo
+// 6. MÉTÉO
 // ═══════════════════════════════════════════════════
 
-/**
- * Récupère la météo pour une date donnée via Open-Meteo.
- * API gratuite, sans clé, précision hourly.
- * @param {string} date - Format YYYY-MM-DD
- * @param {number} lat
- * @param {number} lon
- */
-async function fetchWeather(date, lat = CONFIG.METEO.DEFAULT_LAT, lon = CONFIG.METEO.DEFAULT_LON) {
-  const url = `https://api.open-meteo.com/v1/forecast`
-    + `?latitude=${lat}&longitude=${lon}`
-    + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max`
-    + `&timezone=Europe%2FParis`
-    + `&start_date=${date}&end_date=${date}`;
-
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error('Météo indisponible');
-  const data = await resp.json();
-
-  return {
-    tempMax:  data.daily.temperature_2m_max?.[0],
-    tempMin:  data.daily.temperature_2m_min?.[0],
-    rain:     data.daily.precipitation_sum?.[0],
-    wind:     data.daily.windspeed_10m_max?.[0],
-  };
+async function fetchWeather(date) {
+  const {DEFAULT_LAT:lat,DEFAULT_LON:lon}=CONFIG.METEO;
+  const data=await $.getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max&timezone=Europe%2FParis&start_date=${date}&end_date=${date}`);
+  return{tempMax:data.daily.temperature_2m_max[0],tempMin:data.daily.temperature_2m_min[0],rain:data.daily.precipitation_sum[0],wind:data.daily.windspeed_10m_max[0]};
 }
 
-/**
- * Affiche la météo dans la card dédiée.
- * @param {string} date
- */
 async function renderWeather(date) {
-  const container = document.getElementById('weather-content');
-  if (!date) {
-    container.innerHTML = '<p class="empty-state">Sélectionnez un créneau pour voir la météo.</p>';
-    return;
-  }
-
-  container.innerHTML = '<p class="empty-state">Chargement météo…</p>';
-  try {
-    const w    = await fetchWeather(date);
-    const rain = w.rain > 5 ? '🌧' : w.rain > 0 ? '🌦' : '☀️';
-    container.innerHTML = `
-      <div class="weather-grid">
-        <div class="weather-cell">
-          <div class="weather-temp">${w.tempMax ?? '--'}°</div>
-          <div class="weather-label">Max</div>
-        </div>
-        <div class="weather-cell">
-          <div class="weather-temp" style="color:var(--text-sub)">${w.tempMin ?? '--'}°</div>
-          <div class="weather-label">Min</div>
-        </div>
-        <div class="weather-cell">
-          <div class="weather-temp" style="font-size:1.6rem">${rain}</div>
-          <div class="weather-label">${w.rain ?? 0} mm</div>
-        </div>
-        <div class="weather-cell">
-          <div class="weather-temp" style="font-size:1rem;color:var(--accent3)">${w.wind ?? '--'}</div>
-          <div class="weather-label">km/h vent</div>
-        </div>
-      </div>
-    `;
-  } catch {
-    container.innerHTML = '<p class="empty-state">Météo non disponible.</p>';
-  }
+  const $c=$('#weather-content');if(!$c.length)return;
+  if(!date){$c.html('<p class="empty-state">Sélectionnez un créneau pour voir la météo.</p>');return;}
+  $c.html('<p class="empty-state">Chargement météo…</p>');
+  try{const w=await fetchWeather(date);const rain=w.rain>5?'🌧':w.rain>0?'🌦':'☀️';
+    $c.html(`<div class="weather-grid">
+      <div class="weather-cell"><div class="weather-temp">${w.tempMax??'--'}°</div><div class="weather-label">Max</div></div>
+      <div class="weather-cell"><div class="weather-temp" style="color:var(--text-sub)">${w.tempMin??'--'}°</div><div class="weather-label">Min</div></div>
+      <div class="weather-cell"><div class="weather-temp" style="font-size:1.6rem">${rain}</div><div class="weather-label">${w.rain??0} mm</div></div>
+      <div class="weather-cell"><div class="weather-temp" style="font-size:1rem;color:var(--accent3)">${w.wind??'--'}</div><div class="weather-label">km/h vent</div></div>
+    </div>`);}catch{$c.html('<p class="empty-state">Météo non disponible.</p>');}
 }
 
 // ═══════════════════════════════════════════════════
-// 7. EXPORTS — XLSX & ICS
+// 7. EXPORTS
 // ═══════════════════════════════════════════════════
 
-/**
- * Exporte les données de la session en fichier .xlsx via SheetJS.
- */
-function exportXLSX() {
-  const wb   = XLSX.utils.book_new();
-
-  // Feuille Inscrits
-  const playersData = [
-    ['#', 'Prénom', 'Statut'],
-    ...state.players.map((p, i) => [i + 1, p.name, 'Inscrit']),
-    ...state.waitlist.map((p, i) => [state.players.length + i + 1, p.name, 'Liste d\'attente']),
-  ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(playersData), 'Inscrits');
-
-  // Feuille Session
-  const s = state.session || {};
-  const sessionData = [
-    ['Champ', 'Valeur'],
-    ['Date',        s.date    || ''],
-    ['Lieu',        s.venue   || ''],
-    ['Prix total',  s.price   || ''],
-    ['Notes',       s.notes   || ''],
-    ['Nb inscrits', state.players.length],
-    ['Nb attente',  state.waitlist.length],
-  ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sessionData), 'Session');
-
-  // Feuille Créneaux
-  const slotsData = [
-    ['Date', 'Début', 'Fin', 'Lieu', 'Prix', 'Votes'],
-    ...state.slots.map(s => [s.date, s.start, s.end, s.venue, s.price, s.votes || 0]),
-  ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(slotsData), 'Créneaux');
-
-  XLSX.writeFile(wb, `sportsync-session-${Date.now()}.xlsx`);
-  showToast('Export Excel généré ✓', 'success');
+function exportXLSX(){
+  const wb=XLSX.utils.book_new(),s=state.session||{};
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['#','Prénom','Statut'],...state.players.map((p,i)=>[i+1,p.name,'Inscrit']),...state.waitlist.map((p,i)=>[state.players.length+i+1,p.name,"Liste d'attente"])]),'Inscrits');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Champ','Valeur'],['Date',s.date||''],['Lieu',s.venue||''],['Adresse',s.address||''],['Maps',s.mapsUrl||''],['Réservation',s.bookingUrl||''],['Prix',s.price||''],['Notes',s.notes||''],['Max joueurs',s.maxPlayers||10],['Inscrits',state.players.length],['Attente',state.waitlist.length]]),'Session');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Date','Début','Fin','Lieu','Prix','Votes'],...state.slots.map(sl=>[sl.date,sl.start,sl.end,sl.venue,sl.price,sl.votes||0])]),'Créneaux');
+  XLSX.writeFile(wb,`sportsync-${Date.now()}.xlsx`);
+  showToast('Export Excel généré ✓','success');
 }
 
-/**
- * Génère et télécharge un fichier .ics (iCalendar) pour la session.
- */
-function exportICS() {
-  const s = state.session;
-  if (!s || !s.date) {
-    showToast('Renseignez d\'abord la date de la session', 'error');
-    return;
-  }
-
-  const dt      = new Date(s.date);
-  const dtEnd   = new Date(dt.getTime() + 60 * 60 * 1000); // +1h par défaut
-  const fmt     = (d) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-
-  const ics = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//SportSync//FR',
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
-    'BEGIN:VEVENT',
-    `UID:sportsync-${state.sessionId || 'session'}@app`,
-    `DTSTART:${fmt(dt)}`,
-    `DTEND:${fmt(dtEnd)}`,
-    `SUMMARY:Session Sport — ${s.venue || 'SportSync'}`,
-    `DESCRIPTION:Inscrits : ${state.players.map(p => p.name).join(', ')}\\n${s.notes || ''}`,
-    `LOCATION:${s.venue || ''}`,
-    'STATUS:CONFIRMED',
-    'END:VEVENT',
-    'END:VCALENDAR',
-  ].join('\r\n');
-
-  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `sportsync-session.ics`;
-  a.click();
+function exportICS(){
+  const s=state.session;if(!s||!s.date){showToast("Renseignez d'abord la date",'error');return;}
+  const dt=new Date(s.date),dtEnd=new Date(dt.getTime()+3600000);
+  const fmt=d=>d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
+  const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//SportSync//FR','CALSCALE:GREGORIAN','METHOD:PUBLISH','BEGIN:VEVENT',
+    `UID:sportsync-${state.sessionId||'session'}@app`,`DTSTART:${fmt(dt)}`,`DTEND:${fmt(dtEnd)}`,
+    `SUMMARY:Session Sport — ${s.venue||'SportSync'}`,
+    `DESCRIPTION:Inscrits : ${state.players.map(p=>p.name).join(', ')}\\n${s.notes||''}`,
+    `LOCATION:${s.address||s.venue||''}`, 'STATUS:CONFIRMED','END:VEVENT','END:VCALENDAR'].join('\r\n');
+  const url=URL.createObjectURL(new Blob([ics],{type:'text/calendar;charset=utf-8'}));
+  $('<a>').attr({href:url,download:'sportsync-session.ics'})[0].click();
   URL.revokeObjectURL(url);
-  showToast('Fichier calendrier généré ✓', 'success');
+  showToast('Fichier calendrier généré ✓','success');
 }
 
 // ═══════════════════════════════════════════════════
-// 8. RENDU — Mise à jour du DOM
+// 8. RENDU
 // ═══════════════════════════════════════════════════
 
-function renderAll() {
-  renderDispos();
-  renderSlots();
-  renderPlayers();
+function renderSlots(){
+  const $c=$('#slots-container');if(!$c.length)return;
+  if(!state.slots.length){$c.html('<p class="empty-state">Aucun créneau ajouté.</p>');return;}
+  $c.html(state.slots.map(slot=>`
+    <div class="slot-item">
+      <div class="slot-info">
+        <div class="slot-date">${formatDate(slot.date)} · ${slot.start}${slot.end?' – '+slot.end:''}</div>
+        <div class="slot-meta">${slot.venue||'Lieu non précisé'}</div>
+      </div>
+      <span class="slot-price">${slot.price||'—'}</span>
+      <button class="vote-btn ${slot._voted?'voted':''}" data-id="${slot.id}" ${state.isOffline?'disabled':''}>
+        👍 ${slot.votes||0}
+      </button>
+    </div>`).join(''));
+  $c.off('click','.vote-btn').on('click','.vote-btn',function(){voteSlot(String($(this).data('id')));});
 }
 
-/** Affiche le tableau des disponibilités */
-function renderDispos() {
-  const container = document.getElementById('dispo-table-container');
-  if (state.dispos.length === 0) {
-    container.innerHTML = '<p class="empty-state">Aucune disponibilité pour l\'instant.</p>';
+function renderPlayers(){
+  const $pl=$('#players-list'),$wl=$('#waitlist-container');if(!$pl.length)return;
+  const maxP = (state.session&&state.session.maxPlayers)||10;
+  $('#player-count').text(state.players.length);
+  $('#player-max').text(maxP);
+  $('#waitlist-count').text(state.waitlist.length);
+  $pl.html(state.players.length?state.players.map((p,i)=>`
+    <div class="player-item">
+      <div><span class="player-name">${p.name}</span><span class="player-num"> #${i+1}</span></div>
+      <button class="btn-delete" data-id="${p.id}" data-status="player" ${state.isOffline?'disabled':''}>✕</button>
+    </div>`).join(''):'<p class="empty-state">Aucun inscrit.</p>');
+  if($wl.length){$wl.html(state.waitlist.length?state.waitlist.map((p,i)=>`
+    <div class="player-item">
+      <div><span class="player-name">${p.name}</span><span class="player-num" style="color:var(--accent2)"> attente #${i+1}</span></div>
+      <button class="btn-delete" data-id="${p.id}" data-status="waitlist" ${state.isOffline?'disabled':''}>✕</button>
+    </div>`).join(''):"<p class='empty-state'>Liste d'attente vide.</p>");}
+  $('#players-list,#waitlist-container').off('click','.btn-delete').on('click','.btn-delete',function(){
+    removePlayer(String($(this).data('id')),$(this).data('status'));});
+}
+
+/**
+ * Affiche la session :
+ *  - Mode lecture  (#session-view)  : carte récapitulative + bouton Modifier
+ *  - Mode édition  (#session-form)  : formulaire complet
+ * Les deux divs doivent être présentes dans le HTML.
+ */
+function renderSession(editMode) {
+  const s = state.session;
+  const $view = $('#session-view');
+  const $form = $('#session-form');
+  if (!$view.length || !$form.length) return;
+
+  if (!s || !s.date) {
+    // Aucune session enregistrée → afficher directement le formulaire vide
+    $view.addClass('hidden');
+    $form.removeClass('hidden');
     return;
   }
 
-  const rows = state.dispos.map(d => `
-    <tr>
-      <td>${d.name}</td>
-      <td>${formatDate(d.date)}</td>
-      <td>${d.time || '—'}</td>
-      <td>
-        <button class="btn-delete" onclick="removeDispo(${d.id})" ${state.isOffline ? 'disabled' : ''}>
-          ✕
-        </button>
-      </td>
-    </tr>
-  `).join('');
-
-  container.innerHTML = `
-    <table class="dispo-table">
-      <thead><tr><th>Prénom</th><th>Date</th><th>Heure</th><th></th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-}
-
-/** Affiche les créneaux avec votes */
-function renderSlots() {
-  const container = document.getElementById('slots-container');
-  if (state.slots.length === 0) {
-    container.innerHTML = '<p class="empty-state">Aucun créneau ajouté pour l\'instant.</p>';
-    return;
-  }
-
-  const items = state.slots.map(slot => {
-    const voted = slot._voted || false;
-    return `
-      <div class="slot-item">
-        <div class="slot-info">
-          <div class="slot-date">${formatDate(slot.date)} · ${slot.start}${slot.end ? ' – ' + slot.end : ''}</div>
-          <div class="slot-meta">${slot.venue || 'Lieu non précisé'}</div>
-        </div>
-        <span class="slot-price">${slot.price || '—'}</span>
-        <button
-          class="vote-btn ${voted ? 'voted' : ''}"
-          onclick="voteSlot(${slot.id})"
-          ${state.isOffline ? 'disabled' : ''}
-        >
-          👍 ${slot.votes || 0}
-        </button>
-      </div>
-    `;
-  }).join('');
-
-  container.innerHTML = items;
-}
-
-/** Affiche les inscrits et la liste d'attente */
-function renderPlayers() {
-  const container = document.getElementById('players-list');
-  document.getElementById('player-count').textContent  = state.players.length;
-  document.getElementById('waitlist-count').textContent = state.waitlist.length;
-
-  if (state.players.length === 0) {
-    container.innerHTML = '<p class="empty-state">Aucun inscrit pour l\'instant.</p>';
+  if (editMode) {
+    // Préremplir le formulaire avec les données existantes
+    $('#session-date').val(s.date||'');
+    $('#session-venue').val(s.venue||'');
+    $('#session-address').val(s.address||'');
+    $('#session-maps-url').val(s.mapsUrl||'');
+    $('#session-booking-url').val(s.bookingUrl||'');
+    $('#session-price').val(s.price||'');
+    $('#session-notes').val(s.notes||'');
+    $('#session-max-players').val(s.maxPlayers||10);
+    $view.addClass('hidden');
+    $form.removeClass('hidden');
   } else {
-    container.innerHTML = state.players.map((p, i) => `
-      <div class="player-item">
-        <div>
-          <span class="player-name">${p.name}</span>
-          <span class="player-num"> #${i + 1}</span>
-        </div>
-        <button class="btn-delete" onclick="removePlayer(${p.id}, 'player')" ${state.isOffline ? 'disabled' : ''}>✕</button>
-      </div>
-    `).join('');
-  }
+    // Mode lecture : construire la carte récap
+    const dateLabel = s.date ? formatDateDisplay(s.date) : '—';
+    const mapsBtn   = s.mapsUrl
+      ? `<a href="${s.mapsUrl}" target="_blank" class="btn btn-outline btn-sm session-maps-btn">📍 Google Maps</a>` : '';
+    const bookingBtn= s.bookingUrl
+      ? `<a href="${s.bookingUrl}" target="_blank" class="btn btn-outline btn-sm">🔗 Réservation</a>` : '';
 
-  const waitlistContainer = document.getElementById('waitlist-container');
-  if (state.waitlist.length === 0) {
-    waitlistContainer.innerHTML = '<p class="empty-state">Liste d\'attente vide.</p>';
-  } else {
-    waitlistContainer.innerHTML = state.waitlist.map((p, i) => `
-      <div class="player-item">
-        <div>
-          <span class="player-name">${p.name}</span>
-          <span class="player-num" style="color:var(--accent2)"> attente #${i + 1}</span>
+    $view.html(`
+      <div class="session-recap">
+        <div class="session-recap-row session-recap-row--main">
+          <div class="session-recap-info">
+            <div class="session-recap-date">${dateLabel}</div>
+            <div class="session-recap-venue">${s.venue||'Lieu non renseigné'}</div>
+          </div>
+          <span class="session-recap-price">${s.price ? s.price+'€' : '—'}</span>
         </div>
-        <button class="btn-delete" onclick="removePlayer(${p.id}, 'waitlist')" ${state.isOffline ? 'disabled' : ''}>✕</button>
-      </div>
-    `).join('');
+        ${s.address ? `<div class="session-recap-address">📍 ${s.address}</div>` : ''}
+        ${s.notes   ? `<div class="session-recap-notes">💬 ${s.notes}</div>` : ''}
+        <div class="session-recap-actions">
+          ${mapsBtn}
+          ${bookingBtn}
+          <button class="btn btn-ghost btn-sm" id="btn-edit-session">✏️ Modifier</button>
+        </div>
+      </div>`);
+    $view.removeClass('hidden');
+    $form.addClass('hidden');
   }
 }
 
 // ═══════════════════════════════════════════════════
-// 9. ACTIONS UTILISATEUR
+// 9. RECHERCHE CLUBS (autocomplétion)
 // ═══════════════════════════════════════════════════
 
-/** Ajoute une disponibilité */
-async function addDispo() {
-  if (state.isOffline) return showToast('Mode consultation — modifications désactivées', 'error');
+let _clubSearchTimer = null;
 
-  const name = document.getElementById('dispo-name').value.trim();
-  const date = document.getElementById('dispo-date').value;
-  const time = document.getElementById('dispo-time').value;
+function initClubSearch() {
+  $(document).on('input', '#session-club-search', function() {
+    const q = $(this).val().trim();
+    clearTimeout(_clubSearchTimer);
+    if (q.length < 2) { $('#club-suggestions').addClass('hidden').empty(); return; }
+    _clubSearchTimer = setTimeout(async () => {
+      try {
+        const res = await gasSearchClubs(q);
+        renderClubSuggestions(res.clubs || []);
+      } catch(e) { console.warn('[clubs]', e); }
+    }, 300);
+  });
 
-  if (!name || !date) return showToast('Prénom et date requis', 'error');
-
-  const createdAt = new Date().toISOString();
-
-  // 1. Écriture locale IDB immédiate (UX réactive, pas d'attente réseau)
-  const entry   = { name, date, time, createdAt };
-  const localId = await idbPut('dispos', entry);
-  entry.id = localId;
-  state.dispos.push(entry);
-  renderDispos();
-
-  // Reset formulaire dès maintenant
-  document.getElementById('dispo-name').value = '';
-  document.getElementById('dispo-date').value = '';
-  document.getElementById('dispo-time').value = '';
-
-  // 2. Synchro distante Apps Script (en arrière-plan)
-  try {
-    const result = await gasWrite('addDispo', { name, date, time, createdAt });
-    // Si le script retourne un id canonique, on remplace l'id local
-    if (result.id && result.id !== localId) {
-      await idbDelete('dispos', localId);
-      entry.id = result.id;
-      await idbPut('dispos', entry);
-      state.dispos = state.dispos.map(d => d.id === localId ? entry : d);
-    }
-    showToast('Disponibilité ajoutée ✓', 'success');
-  } catch (err) {
-    console.warn('[addDispo] Synchro distante échouée:', err.message);
-    showToast('Ajouté localement — synchro au prochain démarrage', 'success');
-  }
+  // Clic hors suggestions → fermer
+  $(document).on('click', function(e) {
+    if (!$(e.target).closest('#club-suggestions, #session-club-search').length)
+      $('#club-suggestions').addClass('hidden');
+  });
 }
 
-/** Supprime une disponibilité */
-async function removeDispo(id) {
-  // 1. Suppression locale immédiate
-  await idbDelete('dispos', id);
-  state.dispos = state.dispos.filter(d => d.id !== id);
-  renderDispos();
-
-  // 2. Synchro distante
-  try {
-    await gasWrite('deleteDispo', { id });
-  } catch (err) {
-    console.warn('[removeDispo] Synchro distante échouée:', err.message);
-  }
+function renderClubSuggestions(clubs) {
+  const $s = $('#club-suggestions');
+  if (!clubs.length) { $s.addClass('hidden').empty(); return; }
+  $s.html(clubs.map(c => `
+    <div class="club-suggestion" data-club='${JSON.stringify(c).replace(/'/g,"&#39;")}'>
+      <span class="club-name">${c.name}</span>
+      ${c.address ? `<span class="club-addr">${c.address}</span>` : ''}
+    </div>`).join('')).removeClass('hidden');
 }
 
-/** Ajoute un créneau (depuis le modal ou le Smart Parser) */
+// Clic sur une suggestion → préremplir les champs
+$(document).on('click', '.club-suggestion', function() {
+  try {
+    const c = JSON.parse($(this).attr('data-club').replace(/&#39;/g,"'"));
+    $('#session-venue').val(c.name||'');
+    $('#session-address').val(c.address||'');
+    $('#session-maps-url').val(c.mapsUrl||'');
+    $('#session-booking-url').val(c.bookingUrl||'');
+    $('#session-club-search').val(c.name||'');
+    $('#club-suggestions').addClass('hidden');
+  } catch(e) { console.warn('[club fill]', e); }
+});
+
+// ═══════════════════════════════════════════════════
+// 10. ACTIONS UTILISATEUR
+// ═══════════════════════════════════════════════════
+
+async function addDispo() { /* géré par dispo.js */ }
+
 async function addSlot(slotData) {
-  if (state.isOffline) return showToast('Mode consultation — modifications désactivées', 'error');
-
-  // 1. IDB local
-  const slot    = { ...slotData, votes: 0, _voted: false };
-  const localId = await idbPut('slots', slot);
-  slot.id = localId;
+  if (state.isOffline) return showToast('Mode consultation','error');
+  const slot=Object.assign({},slotData,{votes:0,_voted:false});
+  const localId=await idbPut('slots',slot);
+  slot.id=String(localId);
   state.slots.push(slot);
   renderSlots();
-  showToast('Créneau ajouté ✓', 'success');
-
-  // 2. Synchro distante
-  try {
-    const result = await gasWrite('addSlot', {
-      date: slot.date, start: slot.start, end: slot.end,
-      venue: slot.venue, price: slot.price,
-    });
-    if (result.id && result.id !== localId) {
-      await idbDelete('slots', localId);
-      slot.id = result.id;
-      await idbPut('slots', slot);
-      state.slots = state.slots.map(s => s.id === localId ? slot : s);
-    }
-  } catch (err) {
-    console.warn('[addSlot] Synchro distante échouée:', err.message);
-  }
+  showToast('Créneau ajouté ✓','success');
+  gasWrite('addSlot',{date:slot.date,start:slot.start,end:slot.end,venue:slot.venue,price:slot.price})
+    .then(r=>{if(r.id&&r.id!==slot.id){idbDelete('slots',localId);slot.id=r.id;idbPut('slots',slot);state.slots=state.slots.map(s=>s.id===String(localId)?slot:s);}})
+    .catch(e=>console.warn('[addSlot]',e));
 }
 
-/** Vote pour un créneau */
 async function voteSlot(id) {
-  if (state.isOffline) return showToast('Mode consultation — modifications désactivées', 'error');
-
-  const slot = state.slots.find(s => s.id === id);
-  if (!slot) return;
-
-  // Toggle vote local
-  slot._voted = !slot._voted;
-  const delta = slot._voted ? 1 : -1;
-  slot.votes  = (slot.votes || 0) + delta;
-  await idbPut('slots', slot);
-
-  // Mise à jour météo si ce créneau a une date
-  if (slot._voted && slot.date) renderWeather(slot.date);
+  if (state.isOffline) return showToast('Mode consultation','error');
+  const slot=state.slots.find(s=>String(s.id)===String(id));if(!slot)return;
+  slot._voted=!slot._voted;
+  const delta=slot._voted?1:-1;
+  slot.votes=(slot.votes||0)+delta;
+  await idbPut('slots',slot);
+  if(slot._voted&&slot.date) renderWeather(slot.date);
   renderSlots();
-
-  // Synchro distante du compteur de votes
-  try {
-    await gasWrite('voteSlot', { id, delta });
-  } catch (err) {
-    console.warn('[voteSlot] Synchro distante échouée:', err.message);
-  }
+  gasWrite('voteSlot',{id,delta}).catch(e=>console.warn('[voteSlot]',e));
 }
 
-/** Ajoute un joueur ou le met en liste d'attente */
 async function addPlayer() {
-  if (state.isOffline) return showToast('Mode consultation — modifications désactivées', 'error');
-
-  const name = document.getElementById('new-player-name').value.trim();
-  if (!name) return;
-
-  const status   = state.players.length >= CONFIG.MAX_PLAYERS ? 'waitlist' : 'player';
-  const player   = { name, status };
-  const localId  = await idbPut('players', player);
-  player.id = localId;
-
-  if (status === 'player') state.players.push(player);
-  else                     state.waitlist.push(player);
-
+  if (state.isOffline) return showToast('Mode consultation','error');
+  const name=$('#new-player-name').val().trim();if(!name)return;
+  const maxP=(state.session&&state.session.maxPlayers)||10;
+  const status=state.players.length>=maxP?'waitlist':'player';
+  const player={name,status};
+  const localId=await idbPut('players',player);
+  player.id=String(localId);
+  (status==='player'?state.players:state.waitlist).push(player);
   renderPlayers();
-  document.getElementById('new-player-name').value = '';
-
-  showToast(
-    status === 'waitlist' ? `${name} ajouté en liste d'attente` : `${name} inscrit ✓`,
-    'success'
-  );
-
-  // Synchro distante
-  try {
-    const result = await gasWrite('addPlayer', { name, status });
-    if (result.id && result.id !== localId) {
-      await idbDelete('players', localId);
-      player.id = result.id;
-      await idbPut('players', player);
-      const list = status === 'player' ? state.players : state.waitlist;
-      const idx  = list.findIndex(p => p.id === localId);
-      if (idx !== -1) list[idx] = player;
-    }
-  } catch (err) {
-    console.warn('[addPlayer] Synchro distante échouée:', err.message);
-  }
+  $('#new-player-name').val('');
+  showToast(status==='waitlist'?`${name} en liste d'attente`:`${name} inscrit ✓`,'success');
+  gasWrite('addPlayer',{name,status}).catch(e=>console.warn('[addPlayer]',e));
 }
 
-/** Retire un joueur et promeut la liste d'attente si besoin */
 async function removePlayer(id, status) {
-  // 1. Suppression locale
-  await idbDelete('players', id);
-  if (status === 'player') {
-    state.players = state.players.filter(p => p.id !== id);
-    // Promotion automatique depuis la liste d'attente
-    if (state.waitlist.length > 0) {
-      const promoted  = state.waitlist.shift();
-      promoted.status = 'player';
-      await idbPut('players', promoted);
+  await idbDelete('players',id);
+  if(status==='player'){
+    state.players=state.players.filter(p=>String(p.id)!==String(id));
+    if(state.waitlist.length){
+      const promoted=state.waitlist.shift();
+      promoted.status='player';
+      await idbPut('players',promoted);
       state.players.push(promoted);
-      showToast(`${promoted.name} promu depuis la liste d'attente ✓`, 'success');
-      // Synchro promotion
-      gasWrite('promotePlayer', { id: promoted.id }).catch(() => {});
+      showToast(`${promoted.name} promu ✓`,'success');
+      gasWrite('promotePlayer',{id:promoted.id}).catch(()=>{});
     }
-  } else {
-    state.waitlist = state.waitlist.filter(p => p.id !== id);
-  }
+  }else{state.waitlist=state.waitlist.filter(p=>String(p.id)!==String(id));}
   renderPlayers();
-
-  // 2. Synchro distante suppression
-  try {
-    await gasWrite('removePlayer', { id });
-  } catch (err) {
-    console.warn('[removePlayer] Synchro distante échouée:', err.message);
-  }
+  gasWrite('removePlayer',{id}).catch(e=>console.warn('[removePlayer]',e));
 }
 
-/** Sauvegarde les infos de session */
 async function saveSession() {
-  const session = {
-    id:    'current',
-    date:  document.getElementById('session-date').value,
-    venue: document.getElementById('session-venue').value,
-    price: document.getElementById('session-price').value,
-    notes: document.getElementById('session-notes').value,
+  const session={
+    id:'current',
+    date:       $('#session-date').val(),
+    venue:      $('#session-venue').val(),
+    address:    $('#session-address').val(),
+    mapsUrl:    $('#session-maps-url').val(),
+    bookingUrl: $('#session-booking-url').val(),
+    price:      $('#session-price').val(),
+    notes:      $('#session-notes').val(),
+    maxPlayers: Number($('#session-max-players').val())||10,
   };
-
-  // 1. IDB local
-  await idbPut('session', session);
-  state.session = session;
-  showToast('Session enregistrée ✓', 'success');
-
-  // 2. Synchro distante
-  try {
-    await gasWrite('saveSession', {
-      date: session.date, venue: session.venue,
-      price: session.price, notes: session.notes,
-    });
-  } catch (err) {
-    console.warn('[saveSession] Synchro distante échouée:', err.message);
-  }
+  await idbPut('session',session);
+  state.session=session;
+  showToast('Session enregistrée ✓','success');
+  renderSession(false); // repasser en mode lecture
+  renderPlayers();      // mettre à jour le badge maxPlayers
+  gasWrite('saveSession',{
+    date:session.date, venue:session.venue, address:session.address,
+    mapsUrl:session.mapsUrl, bookingUrl:session.bookingUrl,
+    price:session.price, notes:session.notes, maxPlayers:session.maxPlayers,
+  }).catch(e=>console.warn('[saveSession]',e));
 }
 
 // ═══════════════════════════════════════════════════
-// 10. NAVIGATION PAR ÉTAPES
+// 11. NAVIGATION
 // ═══════════════════════════════════════════════════
 
-function goToStep(n) {
-  // Panels
-  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById(`step-${n}`)?.classList.add('active');
-
-  // Nav buttons
-  document.querySelectorAll('.step-btn').forEach(btn => {
-    const s = Number(btn.dataset.step);
-    btn.classList.toggle('active', s === n);
-    btn.classList.toggle('done',   s < n);
-  });
-
-  state.currentStep = n;
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+function goToStep(n){
+  $('.step-panel').removeClass('active');$('#step-'+n).addClass('active');
+  $('.step-btn').each(function(){const s=Number($(this).data('step'));$(this).toggleClass('active',s===n).toggleClass('done',s<n);});
+  state.currentStep=n;window.scrollTo({top:0,behavior:'smooth'});
 }
 
 // ═══════════════════════════════════════════════════
-// 11. URL PARAMS — Type de session
+// 12. URL PARAMS
 // ═══════════════════════════════════════════════════
 
-/**
- * Parse les paramètres d'URL pour configurer le type de session.
- *
- * Exemples d'URL supportées :
- *   ?type=recurring          → Session récurrente (foot du mardi)
- *   ?type=once               → Session unique
- *   ?type=once&id=UUID       → Session unique identifiée
- */
-function parseURLParams() {
-  const params = new URLSearchParams(window.location.search);
-  const type   = params.get('type') || 'once';
-  const id     = params.get('id')   || generateUUID();
-
-  state.sessionType = type;
-  state.sessionId   = type === 'recurring' ? null : id;
-
-  // Mettre à jour le badge
-  const badge = document.getElementById('session-badge');
-  if (type === 'recurring') {
-    badge.textContent = '🔁 Récurrent';
-    badge.style.borderColor = 'var(--accent-dim)';
-    badge.style.color       = 'var(--accent)';
-  } else {
-    badge.textContent = `🎯 ${id.slice(0, 8).toUpperCase()}`;
-  }
-
-  // Pour une session once, écrire l'UUID dans l'URL si pas déjà présent
-  if (type === 'once' && !params.get('id')) {
-    const newURL = `${window.location.pathname}?type=once&id=${id}`;
-    history.replaceState(null, '', newURL);
-  }
+function parseURLParams(){
+  const params=new URLSearchParams(window.location.search);
+  const type=params.get('type')||'once';
+  const id=params.get('id')||generateUUID();
+  state.sessionType=type;
+  state.sessionId=type==='recurring'?'recurring':id;
+  if(type==='recurring') $('#session-badge').text('🔁 Récurrent').css({borderColor:'var(--accent-dim)',color:'var(--accent)'});
+  else $('#session-badge').text('🎯 '+id.slice(0,8).toUpperCase());
+  if(type==='once'&&!params.get('id')) history.replaceState(null,'',window.location.pathname+'?type=once&id='+id);
 }
 
 // ═══════════════════════════════════════════════════
-// 12. UTILITAIRES
+// 13. UTILITAIRES
 // ═══════════════════════════════════════════════════
 
-function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-  });
+function generateUUID(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16);});}
+
+/** Formate 'YYYY-MM-DD' ou 'YYYY-MM-DDTHH:MM' → libellé court FR */
+function formatDate(dateStr){
+  if(!dateStr) return '—';
+  try{return new Date((dateStr+'T00:00:00').slice(0,19)).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});}
+  catch(e){return dateStr;}
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  try {
-    return new Date(dateStr + 'T00:00:00').toLocaleDateString('fr-FR', {
-      weekday: 'short', day: 'numeric', month: 'short'
-    });
-  } catch { return dateStr; }
+/** Formate pour l'affichage complet dans la fiche session */
+function formatDateDisplay(dateStr){
+  if(!dateStr) return '—';
+  try{
+    const d=new Date((dateStr+'T00:00:00').slice(0,19));
+    const opts={weekday:'long',day:'numeric',month:'long',year:'numeric'};
+    // Si datetime-local (contient T et heure)
+    if(dateStr.includes('T')&&dateStr.length>10){
+      const dt=new Date(dateStr);
+      return dt.toLocaleDateString('fr-FR',opts)+' à '+dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    }
+    return d.toLocaleDateString('fr-FR',opts);
+  }catch(e){return dateStr;}
 }
 
-function setSyncStatus(msg, type = '') {
-  const el = document.getElementById('sync-status');
-  el.textContent = msg;
-  el.className   = `sync-status ${type}`;
-}
+function setSyncStatus(msg,type){$('#sync-status').text(msg).attr('class','sync-status '+(type||''));}
+function showToast(msg,type){const $t=$('#toast');$t.text(msg).attr('class','toast '+(type||'')).removeClass('hidden');clearTimeout($t.data('timer'));$t.data('timer',setTimeout(()=>$t.addClass('hidden'),3000));}
 
-function showToast(msg, type = '') {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className   = `toast ${type}`;
-  el.classList.remove('hidden');
-  clearTimeout(el._timer);
-  el._timer = setTimeout(() => el.classList.add('hidden'), 3000);
-}
-
-function setOfflineMode(offline) {
-  state.isOffline = offline;
-  const banner    = document.getElementById('offline-banner');
-  banner.classList.toggle('hidden', !offline);
-  // Désactiver les champs en mode offline
-  document.querySelectorAll('input, textarea, button:not(.btn-ghost):not(.btn-delete):not(.vote-btn)')
-    .forEach(el => {
-      if (offline) el.setAttribute('disabled', '');
-      else         el.removeAttribute('disabled');
-    });
-  if (offline) setSyncStatus('📵 Hors ligne — consultation uniquement', 'err');
+function setOfflineMode(offline){
+  state.isOffline=offline;
+  $('#offline-banner').toggleClass('hidden',!offline);
+  $('input,textarea').prop('disabled',offline);
+  $('button').not('.btn-ghost,.btn-delete,.vote-btn,.plany-btn,.plany-nav-arrow,.plany-nav-cal,.plany-cell-close,.plany-bulk-btn,.cell-sheet-btn,.session-maps-btn').prop('disabled',offline);
+  if(offline) setSyncStatus('📵 Hors ligne — consultation uniquement','err');
 }
 
 // ═══════════════════════════════════════════════════
-// 13. ÉVÉNEMENTS DOM
+// 14. BINDING ÉVÉNEMENTS
 // ═══════════════════════════════════════════════════
 
-function bindEvents() {
-  // ── Navigation ───────────────────────────────────
-  document.querySelectorAll('.step-btn').forEach(btn =>
-    btn.addEventListener('click', () => goToStep(Number(btn.dataset.step)))
-  );
-
+function bindEvents(){
+  // Navigation steps
+  $(document).on('click','.step-btn',function(){goToStep(Number($(this).data('step')));});
   // Étape 1
-  document.getElementById('btn-add-dispo').addEventListener('click', addDispo);
-  document.getElementById('btn-dispo-next').addEventListener('click', () => goToStep(2));
-  document.getElementById('btn-skip-dispo').addEventListener('click', () => goToStep(2));
-
+  $(document).on('click','#btn-dispo-next',()=>goToStep(2));
+  $(document).on('click','#btn-skip-dispo',()=>goToStep(2));
   // Étape 2
-  document.getElementById('btn-slots-back').addEventListener('click', () => goToStep(1));
-  document.getElementById('btn-slots-next').addEventListener('click', () => goToStep(3));
-
+  $(document).on('click','#btn-slots-back',()=>goToStep(1));
+  $(document).on('click','#btn-slots-next',()=>goToStep(3));
   // Smart Parser
-  document.getElementById('btn-parse').addEventListener('click', () => {
-    const raw     = document.getElementById('smart-parser-input').value;
-    const results = smartParse(raw);
-    const el      = document.getElementById('parser-result');
-
-    if (results.length === 0) {
-      el.textContent = '⚠️ Aucun créneau détecté. Essayez avec un texte plus détaillé.';
-      el.classList.remove('hidden');
-      return;
-    }
-
-    el.textContent = JSON.stringify(results, null, 2);
-    el.classList.remove('hidden');
-
-    // Proposer d'ajouter les créneaux détectés
-    results.forEach(slot => {
-      if (slot.date || slot.start) addSlot(slot);
-    });
-    showToast(`${results.length} créneau(x) détecté(s) ✓`, 'success');
+  $(document).on('click','#btn-parse',function(){
+    const raw=$('#smart-parser-input').val();
+    const results=smartParse(raw);
+    const $el=$('#parser-result');
+    if(!results.length){$el.text('⚠️ Aucun créneau détecté.').removeClass('hidden');return;}
+    $el.text(JSON.stringify(results,null,2)).removeClass('hidden');
+    results.forEach(slot=>{if(slot.date||slot.start) addSlot(slot);});
+    showToast(results.length+' créneau(x) détecté(s) ✓','success');
   });
-
-  document.getElementById('btn-parse-clear').addEventListener('click', () => {
-    document.getElementById('smart-parser-input').value = '';
-    document.getElementById('parser-result').classList.add('hidden');
-  });
-
+  $(document).on('click','#btn-parse-clear',function(){$('#smart-parser-input').val('');$('#parser-result').addClass('hidden');});
   // Modal créneau manuel
-  document.getElementById('btn-add-slot-manual').addEventListener('click', () => {
-    document.getElementById('modal-slot').classList.remove('hidden');
+  $(document).on('click','#btn-add-slot-manual',()=>$('#modal-slot').removeClass('hidden'));
+  $(document).on('click','#btn-modal-cancel',   ()=>$('#modal-slot').addClass('hidden'));
+  $(document).on('click','#modal-slot',function(e){if(e.target===this)$(this).addClass('hidden');});
+  $(document).on('click','#btn-modal-confirm',function(){
+    const price=$('#modal-slot-price').val();
+    const slot={date:$('#modal-slot-date').val(),start:$('#modal-slot-start').val(),end:$('#modal-slot-end').val(),venue:$('#modal-slot-venue').val(),price:price?price+'€':''};
+    if(!slot.date&&!slot.start){showToast('Date ou heure requise','error');return;}
+    addSlot(slot);$('#modal-slot').addClass('hidden');
+    $('#modal-slot-date,#modal-slot-start,#modal-slot-end,#modal-slot-venue,#modal-slot-price').val('');
   });
-
-  document.getElementById('btn-modal-cancel').addEventListener('click', () => {
-    document.getElementById('modal-slot').classList.add('hidden');
-  });
-
-  document.getElementById('btn-modal-confirm').addEventListener('click', () => {
-    const slot = {
-      date:  document.getElementById('modal-slot-date').value,
-      start: document.getElementById('modal-slot-start').value,
-      end:   document.getElementById('modal-slot-end').value,
-      venue: document.getElementById('modal-slot-venue').value,
-      price: document.getElementById('modal-slot-price').value
-        ? document.getElementById('modal-slot-price').value + '€' : '',
-    };
-    if (!slot.date && !slot.start) {
-      showToast('Date ou heure requise', 'error');
-      return;
-    }
-    addSlot(slot);
-    document.getElementById('modal-slot').classList.add('hidden');
-    // Reset modal
-    ['modal-slot-date','modal-slot-start','modal-slot-end','modal-slot-venue','modal-slot-price']
-      .forEach(id => document.getElementById(id).value = '');
-  });
-
-  // Fermer modal sur overlay
-  document.getElementById('modal-slot').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
-  });
-
-  // Étape 3
-  document.getElementById('btn-final-back').addEventListener('click', () => goToStep(2));
-  document.getElementById('btn-save-session').addEventListener('click', saveSession);
-  document.getElementById('btn-add-player').addEventListener('click', addPlayer);
-  document.getElementById('new-player-name').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') addPlayer();
-  });
-
+  // Étape 3 — session
+  $(document).on('click','#btn-final-back',  ()=>goToStep(2));
+  $(document).on('click','#btn-save-session', saveSession);
+  $(document).on('click','#btn-edit-session', ()=>renderSession(true));  // mode édition
+  $(document).on('click','#btn-cancel-edit',  ()=>renderSession(false)); // annuler édition
+  // Étape 3 — joueurs
+  $(document).on('click','#btn-add-player',  addPlayer);
+  $(document).on('keydown','#new-player-name',function(e){if(e.key==='Enter') addPlayer();});
   // Exports
-  document.getElementById('btn-export-xlsx').addEventListener('click', exportXLSX);
-  document.getElementById('btn-export-ics').addEventListener('click',  exportICS);
-
-  // Sync manuelle
-  document.getElementById('btn-force-sync').addEventListener('click', syncFromSheets);
-
-  // ── Réseau ───────────────────────────────────────
-  window.addEventListener('online',  () => { setOfflineMode(false); syncFromSheets(); });
-  window.addEventListener('offline', () => setOfflineMode(true));
+  $(document).on('click','#btn-export-xlsx', exportXLSX);
+  $(document).on('click','#btn-export-ics',  exportICS);
+  // Sync
+  $(document).on('click','#btn-force-sync',  syncFromSheets);
+  // Réseau
+  $(window).on('online', ()=>{setOfflineMode(false);syncFromSheets();});
+  $(window).on('offline',()=>setOfflineMode(true));
 }
 
 // ═══════════════════════════════════════════════════
-// 14. BOOT
+// 15. BOOT
 // ═══════════════════════════════════════════════════
 
-async function boot() {
-  try {
-    // 1. IndexedDB
-    state.db = await initIDB();
-    console.log('[Boot] IndexedDB initialisée');
-
-    // 2. URL params
+async function boot(){
+  try{
+    state.db=await initIDB();
+    console.log('[Boot] IDB v3');
     parseURLParams();
-
-    // 3. Charger les données locales immédiatement (expérience rapide)
-    await loadStateFromIDB();
-
-    // 4. Synchro réseau en arrière-plan
-    if (!state.isOffline) {
-      syncFromSheets().catch(err => {
-        console.warn('[Boot] Synchro échouée, données locales utilisées:', err.message);
-        setSyncStatus('⚠️ Synchro échouée — données locales', 'err');
+    await loadStateFromIDB(); // charge session, players, slots, dispos → render immédiat
+    if(!state.isOffline){
+      syncFromSheets().catch(err=>{
+        console.warn('[Boot] Synchro:',err.message||err);
+        setSyncStatus('⚠️ Synchro échouée','err');
       });
-    } else {
-      setOfflineMode(true);
+    }else{setOfflineMode(true);}
+    window._sportSyncDB=state.db;
+    if(window.SportSyncDispo){
+      window._dispoInitialized=true;
+      await window.SportSyncDispo.init({db:state.db,sessionId:state.sessionId||'recurring'});
     }
-
-    // 5. Binding événements
     bindEvents();
-
-    // 6. Afficher étape 1 par défaut
+    initClubSearch();
     goToStep(1);
-
-    console.log('[Boot] SportSync prêt ✓', {
-      type: state.sessionType,
-      id:   state.sessionId,
-    });
-
-  } catch (err) {
-    console.error('[Boot] Erreur critique:', err);
-    setSyncStatus('❌ Erreur au démarrage', 'err');
+    console.log('[Boot] SportSync v3 prêt ✓',{type:state.sessionType,id:state.sessionId});
+  }catch(err){
+    console.error('[Boot] Erreur critique:',err);
+    setSyncStatus('❌ Erreur au démarrage','err');
   }
 }
 
-// ── Démarrage ────────────────────────────────────
-document.addEventListener('DOMContentLoaded', boot);
-
-// ── Expose globalement (appelé depuis le HTML inline) ─
-window.removeDispo   = removeDispo;
-window.voteSlot      = voteSlot;
-window.removePlayer  = removePlayer;
+$(document).ready(boot);
+window.voteSlot     = voteSlot;
+window.removePlayer = removePlayer;

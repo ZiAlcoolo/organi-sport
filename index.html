@@ -15,10 +15,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
 
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+
   <!-- SheetJS CDN (export .xlsx) -->
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="dispo.css" />
 </head>
 <body>
 
@@ -64,52 +68,82 @@
     <main class="app-main" id="app-main">
 
       <!-- ══════════════════════════════════════════════
-           ÉTAPE 1 — DISPONIBILITÉS
+           ÉTAPE 1 — DISPONIBILITÉS (Grille Plany)
       ══════════════════════════════════════════════ -->
       <section class="step-panel active" id="step-1">
-        <div class="panel-header">
-          <h2>Vos disponibilités</h2>
-          <p class="panel-sub">Indiquez vos créneaux libres pour trouver une date commune.</p>
-        </div>
 
-        <!-- Ajouter sa dispo -->
-        <div class="card">
-          <h3 class="card-title">Ajouter mes disponibilités</h3>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="dispo-name">Votre prénom</label>
-              <input type="text" id="dispo-name" placeholder="ex: Julien" autocomplete="given-name" />
-            </div>
-          </div>
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="dispo-date">Date</label>
-              <input type="date" id="dispo-date" />
-            </div>
-            <div class="form-group">
-              <label for="dispo-time">Heure</label>
-              <input type="time" id="dispo-time" />
-            </div>
-          </div>
-          <button class="btn btn-primary" id="btn-add-dispo">
-            <span>Ajouter ce créneau</span>
-          </button>
-        </div>
-
-        <!-- Tableau des dispos -->
-        <div class="card">
-          <h3 class="card-title">Récapitulatif</h3>
-          <div id="dispo-table-container">
-            <p class="empty-state">Aucune disponibilité pour l'instant.</p>
+        <!-- Saisie du prénom -->
+        <div class="dispo-identity card">
+          <div class="form-group">
+            <label for="dispo-username">Votre prénom</label>
+            <input type="text" id="dispo-username" placeholder="ex: Julien" autocomplete="given-name" />
           </div>
         </div>
 
-        <!-- Actions -->
+        <!-- Grille Plany -->
+        <div class="plany-module card">
+
+          <div class="plany-toolbar">
+            <div class="plany-filters">
+              <div class="plany-filter-group">
+                <button class="plany-btn plany-btn--week"    id="btn-filter-week">    <span class="plany-btn-icon">📅</span><span>SEMAINE</span></button>
+                <button class="plany-btn plany-btn--weekend" id="btn-filter-weekend"> <span class="plany-btn-icon">📅</span><span>WEEK-END</span></button>
+                <button class="plany-btn plany-btn--clear"   id="btn-filter-clear">   <span class="plany-btn-icon">🧹</span><span>EFFACER</span></button>
+              </div>
+            </div>
+            <div class="plany-nav">
+              <button class="plany-nav-arrow" id="btn-week-prev" aria-label="Semaine précédente">‹</button>
+              <span class="plany-period" id="plany-period-label">—</span>
+              <button class="plany-nav-arrow" id="btn-week-next" aria-label="Semaine suivante">›</button>
+              <button class="plany-nav-cal"   id="btn-week-today" title="Aujourd'hui">📆</button>
+            </div>
+          </div>
+
+          <div class="plany-grid-wrapper">
+            <table class="plany-grid" id="plany-grid" role="grid" aria-label="Grille de disponibilités"></table>
+          </div>
+
+          <div class="plany-legend">
+            <span class="legend-item"><span class="legend-dot legend-dot--ok"></span> Disponible</span>
+            <span class="legend-item"><span class="legend-dot legend-dot--no"></span> Indisponible</span>
+            <span class="legend-item"><span class="legend-dot legend-dot--empty"></span> Non renseigné</span>
+          </div>
+        </div>
+
+        <!-- Panneau Créneaux Communs -->
+        <div class="card" id="dispo-common-panel">
+          <h3 class="card-title">🏆 Créneaux communs</h3>
+          <div id="dispo-common-slots">
+            <p class="empty-state">Renseignez vos disponibilités dans la grille ci-dessus.</p>
+          </div>
+        </div>
+
         <div class="step-actions">
           <button class="btn btn-ghost" id="btn-skip-dispo">Passer cette étape →</button>
           <button class="btn btn-primary" id="btn-dispo-next">Dispo trouvée, continuer →</button>
         </div>
       </section>
+
+      <!-- Overlays grille dispo (hors flux de l'étape) -->
+      <!-- Bottom sheet bulk (Semaine / Week-end) -->
+      <div class="plany-bulk-overlay hidden" id="plany-bulk-overlay" role="dialog" aria-modal="true">
+        <div class="plany-bulk-sheet">
+          <p class="plany-bulk-title" id="plany-bulk-title">Que faire ?</p>
+          <button class="plany-bulk-btn plany-bulk-btn--ok"     data-bulk="ok">✅ Disponible pour tous ces jours</button>
+          <button class="plany-bulk-btn plany-bulk-btn--no"     data-bulk="no">❌ Indisponible pour tous ces jours</button>
+          <button class="plany-bulk-btn plany-bulk-btn--clear"  data-bulk="clear">🗑️ Effacer ces jours</button>
+          <button class="plany-bulk-btn plany-bulk-btn--cancel" id="btn-bulk-cancel">Annuler</button>
+        </div>
+      </div>
+
+      <!-- Bottom sheet cellule (mobile) -->
+      <div class="plany-cell-overlay hidden" id="plany-cell-overlay" role="dialog" aria-modal="true">
+        <div class="plany-cell-sheet" id="plany-cell-sheet">
+          <p class="plany-cell-title" id="plany-cell-title">—</p>
+          <div id="plany-cell-options"></div>
+          <button class="plany-cell-close" id="btn-cell-close">FERMER</button>
+        </div>
+      </div>
 
       <!-- ══════════════════════════════════════════════
            ÉTAPE 2 — CRÉNEAUX DE TERRAINS
@@ -175,15 +209,37 @@
           <p class="panel-sub">Confirmez les détails et gérez les inscriptions.</p>
         </div>
 
-        <!-- Infos réservation -->
-        <div class="card">
-          <h3 class="card-title">Infos de la réservation</h3>
+        <!-- ── MODE LECTURE : fiche récap (injectée par renderSession) ── -->
+        <div class="card" id="session-view-card">
+          <div class="card-title-row">
+            <h3 class="card-title">📋 Infos de la session</h3>
+          </div>
+          <!-- Contenu injecté par renderSession() -->
+          <div id="session-view"></div>
+        </div>
+
+        <!-- ── MODE ÉDITION : formulaire complet ── -->
+        <div class="card hidden" id="session-form">
+          <h3 class="card-title">✏️ Renseigner / Modifier la session</h3>
+
+          <!-- Recherche club -->
+          <div class="form-row" style="position:relative">
+            <div class="form-group">
+              <label for="session-club-search">Rechercher un club enregistré</label>
+              <input type="text" id="session-club-search" placeholder="ex: City Padel…" autocomplete="off" />
+              <div id="club-suggestions" class="club-suggestions hidden"></div>
+            </div>
+          </div>
+
+          <!-- Date & heure -->
           <div class="form-row">
             <div class="form-group">
               <label for="session-date">Date &amp; heure</label>
               <input type="datetime-local" id="session-date" />
             </div>
           </div>
+
+          <!-- Lieu + Prix -->
           <div class="form-row two-col">
             <div class="form-group">
               <label for="session-venue">Lieu / Terrain</label>
@@ -194,18 +250,56 @@
               <input type="number" id="session-price" placeholder="ex: 36" min="0" step="0.5" />
             </div>
           </div>
+
+          <!-- Adresse -->
           <div class="form-row">
             <div class="form-group">
-              <label for="session-notes">Notes</label>
-              <input type="text" id="session-notes" placeholder="Parking, code de la porte..." />
+              <label for="session-address">Adresse</label>
+              <input type="text" id="session-address" placeholder="12 rue des Sports, Bordeaux" />
             </div>
           </div>
-          <button class="btn btn-primary" id="btn-save-session">Enregistrer la session</button>
+
+          <!-- Google Maps URL -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="session-maps-url">Lien Google Maps</label>
+              <input type="url" id="session-maps-url" placeholder="https://maps.google.com/…" />
+            </div>
+          </div>
+
+          <!-- Lien réservation -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="session-booking-url">Lien de réservation</label>
+              <input type="url" id="session-booking-url" placeholder="https://…" />
+            </div>
+          </div>
+
+          <!-- Notes + Max joueurs -->
+          <div class="form-row two-col">
+            <div class="form-group">
+              <label for="session-notes">Notes</label>
+              <input type="text" id="session-notes" placeholder="Parking, code d'accès…" />
+            </div>
+            <div class="form-group">
+              <label for="session-max-players">Joueurs max <span style="color:var(--accent);font-size:.7rem">(avant liste d'attente)</span></label>
+              <input type="number" id="session-max-players" value="10" min="1" max="50" />
+            </div>
+          </div>
+
+          <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.5rem">
+            <button class="btn btn-primary" id="btn-save-session">💾 Enregistrer</button>
+            <button class="btn btn-ghost"   id="btn-cancel-edit">Annuler</button>
+          </div>
         </div>
 
         <!-- Inscriptions -->
         <div class="card">
-          <h3 class="card-title">Inscrits <span id="player-count" class="count-badge">0</span></h3>
+          <h3 class="card-title">
+            Inscrits <span id="player-count" class="count-badge">0</span>
+            <span style="font-size:.7rem;color:var(--text-sub);font-weight:400"> / </span>
+            <span id="player-max" class="count-badge count-badge--grey">10</span>
+          </h3>
           <div id="players-list">
             <p class="empty-state">Aucun inscrit pour l'instant.</p>
           </div>
@@ -229,12 +323,8 @@
         <div class="card card-export">
           <h3 class="card-title">Exporter</h3>
           <div class="export-actions">
-            <button class="btn btn-export" id="btn-export-xlsx">
-              <span class="export-icon">📊</span> Export Excel (.xlsx)
-            </button>
-            <button class="btn btn-export" id="btn-export-ics">
-              <span class="export-icon">📅</span> Ajouter au calendrier (.ics)
-            </button>
+            <button class="btn btn-export" id="btn-export-xlsx"><span class="export-icon">📊</span> Export Excel (.xlsx)</button>
+            <button class="btn btn-export" id="btn-export-ics"><span class="export-icon">📅</span> Ajouter au calendrier (.ics)</button>
           </div>
         </div>
 
@@ -276,6 +366,7 @@
   <!-- TOAST NOTIFICATION -->
   <div id="toast" class="toast hidden"></div>
 
+  <script src="dispo.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
