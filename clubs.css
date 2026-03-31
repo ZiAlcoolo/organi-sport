@@ -1,0 +1,268 @@
+/* ════════════════════════════════════════════════════
+   SPORTSYNC — clubs.css
+   Annuaire des clubs + fiche détail
+════════════════════════════════════════════════════ */
+
+/* ── Barre de recherche clubs ─────────────────────── */
+.clubs-search-bar {
+  display: flex;
+  gap: .5rem;
+  margin-bottom: .85rem;
+}
+
+#clubs-search {
+  flex: 1;
+}
+
+/* ── Tabs sport ───────────────────────────────────── */
+.sport-tabs {
+  display: flex;
+  gap: .4rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: .5rem;
+  margin-bottom: .85rem;
+}
+.sport-tabs::-webkit-scrollbar { display: none; }
+
+.sport-tab {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  border-radius: 100px;
+  padding: .35rem .85rem;
+  font-size: .75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.sport-tab.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.sport-tab:hover:not(.active) { border-color: var(--border-light); color: var(--text); }
+
+/* ── Grille clubs ─────────────────────────────────── */
+.clubs-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: .85rem;
+}
+
+@media (min-width: 560px) {
+  .clubs-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 900px) {
+  .clubs-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ── Club card ────────────────────────────────────── */
+.club-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .15s, transform .12s, box-shadow .15s;
+}
+
+.club-card:hover {
+  border-color: var(--border-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+}
+
+.club-card-photo {
+  width: 100%;
+  height: 140px;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--bg-card-alt);
+  position: relative;
+}
+
+.club-card-sport-badge {
+  position: absolute;
+  bottom: .6rem;
+  left: .6rem;
+  font-size: .7rem;
+  font-weight: 700;
+  padding: .25rem .65rem;
+  border-radius: 100px;
+  border: 1px solid;
+  backdrop-filter: blur(6px);
+}
+
+.club-card-body {
+  padding: .85rem;
+}
+
+.club-card-name {
+  font-family: var(--font-display);
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: .3rem;
+}
+
+.club-card-addr {
+  font-size: .75rem;
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: .45rem;
+}
+
+.club-card-badges {
+  display: flex;
+  gap: .35rem;
+  flex-wrap: wrap;
+}
+
+.club-badge {
+  font-size: .68rem;
+  font-weight: 600;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  padding: .15rem .5rem;
+  border-radius: 100px;
+}
+
+/* ── Empty state clubs ────────────────────────────── */
+.clubs-empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--text-sub);
+}
+.clubs-empty-icon { font-size: 3rem; margin-bottom: .75rem; }
+.clubs-empty-sub  { font-size: .82rem; margin-top: .35rem; }
+
+/* ── Modale fiche détail ──────────────────────────── */
+#club-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(0,0,0,.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+#club-detail-overlay.hidden { display: none !important; }
+
+.club-detail-sheet {
+  background: var(--bg-card);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90dvh;
+  overflow-y: auto;
+  animation: slideUp .3s cubic-bezier(0.22,1,0.36,1);
+}
+
+@media (min-width: 640px) {
+  #club-detail-overlay { align-items: center; }
+  .club-detail-sheet   { border-radius: 20px; max-height: 85dvh; }
+}
+
+.club-detail-photo {
+  width: 100%;
+  height: 180px;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--bg-card-alt);
+  position: relative;
+  border-radius: 20px 20px 0 0;
+  flex-shrink: 0;
+}
+
+.club-detail-close {
+  position: absolute;
+  top: .75rem;
+  right: .75rem;
+  background: rgba(0,0,0,.55);
+  border: none;
+  color: #fff;
+  border-radius: 50%;
+  width: 34px; height: 34px;
+  font-size: .9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.club-detail-sport {
+  position: absolute;
+  bottom: .75rem;
+  left: .75rem;
+  font-size: .85rem;
+  font-weight: 700;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(4px);
+  padding: .3rem .8rem;
+  border-radius: 100px;
+}
+
+.club-detail-body {
+  padding: 1.25rem;
+}
+
+.club-detail-name {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: .75rem;
+  line-height: 1.2;
+}
+
+.club-detail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: .6rem;
+  font-size: .85rem;
+  color: var(--text-sub);
+  margin-bottom: .5rem;
+  line-height: 1.5;
+}
+
+.club-detail-row span { flex: 1; }
+
+.club-detail-notes {
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .75rem;
+  font-size: .82rem;
+  color: var(--text-sub);
+  margin: .75rem 0;
+  line-height: 1.6;
+}
+
+.club-detail-actions {
+  display: flex;
+  gap: .6rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding-top: .85rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Tag sport dans suggestion autocomplétion ─────── */
+.club-sport-tag {
+  display: inline-block;
+  font-size: .65rem;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-radius: 100px;
+  padding: .1rem .4rem;
+  margin-left: .3rem;
+  vertical-align: middle;
+}

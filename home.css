@@ -1,0 +1,221 @@
+/* ════════════════════════════════════════════════════
+   SPORTSYNC — home.css
+   Dashboard + Bottom Nav + FAB
+════════════════════════════════════════════════════ */
+
+/* ── Vues (app-view) ──────────────────────────────── */
+.app-view { display: block; }
+.app-view.hidden { display: none !important; }
+
+/* ── Bottom Nav ───────────────────────────────────── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 90;
+  background: rgba(15,17,23,.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: .4rem 0 calc(.4rem + env(safe-area-inset-bottom));
+  height: 60px;
+}
+
+.bnav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .15rem;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: .62rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: .4rem .8rem;
+  border-radius: 10px;
+  transition: color .15s, background .15s;
+  flex: 1;
+  max-width: 80px;
+}
+
+.bnav-btn .bnav-icon { font-size: 1.2rem; line-height: 1; }
+.bnav-btn.active { color: var(--accent); }
+.bnav-btn:hover:not(.active) { color: var(--text); }
+
+/* Espace pour la bottom nav */
+.app-main { padding-bottom: 80px !important; }
+
+/* ── FAB ──────────────────────────────────────────── */
+.fab-btn {
+  position: fixed;
+  bottom: 76px;
+  right: 1rem;
+  z-index: 95;
+  width: 54px; height: 54px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(74,222,128,.35);
+  transition: transform .15s, box-shadow .15s;
+}
+.fab-btn:hover { transform: scale(1.08); box-shadow: 0 6px 24px rgba(74,222,128,.5); }
+.fab-btn:active { transform: scale(.95); }
+
+/* ── Section email ────────────────────────────────── */
+.home-email-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  transition: max-height .3s ease, padding .3s, opacity .3s;
+}
+
+.home-email-section.collapsed {
+  max-height: 40px;
+  overflow: hidden;
+  padding: .5rem 1rem;
+}
+
+.home-email-section.collapsed .home-email-form { display: none; }
+
+.home-email-label {
+  font-size: .8rem;
+  color: var(--text-sub);
+  margin-bottom: .5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.home-email-row {
+  display: flex;
+  gap: .5rem;
+}
+
+.home-email-collapsed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.home-email-current {
+  font-size: .82rem;
+  color: var(--text-sub);
+}
+
+/* ── Section en-tête matches ──────────────────────── */
+.home-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .85rem;
+}
+
+.home-section-title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+/* ── Match card ───────────────────────────────────── */
+.match-card {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .85rem 1rem;
+  margin-bottom: .65rem;
+  transition: border-color .15s, transform .1s;
+  cursor: pointer;
+}
+
+.match-card:hover { border-color: var(--border-light); transform: translateY(-1px); }
+.match-card--past { opacity: .55; }
+
+.match-card-sport { font-size: 1.6rem; flex-shrink: 0; }
+
+.match-card-body { flex: 1; min-width: 0; }
+.match-card-title { font-family: var(--font-display); font-size: .95rem; font-weight: 700; color: var(--text); }
+.match-card-venue { font-size: .78rem; color: var(--text-sub); margin-top: .15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.match-card-date  { font-size: .75rem; color: var(--accent); margin-top: .1rem; }
+
+.match-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: .4rem; flex-shrink: 0; }
+
+/* ── Status badges ────────────────────────────────── */
+.match-status {
+  display: inline-flex;
+  align-items: center;
+  font-size: .68rem;
+  font-weight: 700;
+  padding: .2rem .55rem;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+
+.status--open   { background: rgba(74,222,128,.15); color: var(--accent); border: 1px solid rgba(74,222,128,.3); }
+.status--full   { background: rgba(245,158,11,.15); color: var(--accent2); border: 1px solid rgba(245,158,11,.3); }
+.status--closed { background: rgba(107,114,128,.15); color: var(--muted); border: 1px solid rgba(107,114,128,.3); }
+
+/* ── Empty state dashboard ────────────────────────── */
+.home-empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--text-sub);
+}
+.home-empty-icon { font-size: 3rem; margin-bottom: .75rem; }
+.home-empty-title { font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text); }
+.home-empty-sub   { font-size: .82rem; margin-top: .35rem; }
+
+/* ── Vue Agenda ───────────────────────────────────── */
+.agenda-week { margin-bottom: 1.25rem; }
+
+.agenda-week-label {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  padding: .3rem 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: .5rem;
+}
+
+.agenda-item {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  padding: .65rem .5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background .15s;
+}
+.agenda-item:hover { background: var(--bg-card); }
+
+.agenda-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 36px;
+}
+.agenda-day-name { font-size: .65rem; color: var(--muted); text-transform: uppercase; }
+.agenda-day-num  { font-family: var(--font-display); font-size: 1.1rem; font-weight: 800; color: var(--text); }
+
+.agenda-body { flex: 1; }
+.agenda-title { font-size: .88rem; font-weight: 600; color: var(--text); }
+.agenda-time  { font-size: .75rem; color: var(--accent); margin-top: .1rem; }

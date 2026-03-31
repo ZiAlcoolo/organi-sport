@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f1117" />
   <meta name="description" content="Organisez vos sessions de sport entre amis" />
-  <title>SportSync — Sessions entre amis</title>
-
-  <!-- PWA Manifest -->
+  <title>SportSync</title>
   <link rel="manifest" href="manifest.json" />
 
   <!-- Fonts -->
@@ -16,27 +14,32 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
 
   <!-- jQuery -->
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+    integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 
-  <!-- SheetJS CDN (export .xlsx) -->
+  <!-- SheetJS -->
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
+  <!-- Styles -->
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="dispo.css" />
+  <link rel="stylesheet" href="home.css" />
+  <link rel="stylesheet" href="clubs.css" />
 </head>
 <body>
 
-  <!-- ─── OFFLINE BANNER ─────────────────────────────────────── -->
+  <!-- ── OFFLINE BANNER ──────────────────────────── -->
   <div id="offline-banner" class="offline-banner hidden">
-    <span class="offline-dot"></span>
-    Mode consultation — modifications désactivées
+    <span class="offline-dot"></span> Mode consultation — modifications désactivées
   </div>
 
-  <!-- ─── APP SHELL ──────────────────────────────────────────── -->
+  <!-- ══════════════════════════════════════════════
+       APP SHELL
+  ══════════════════════════════════════════════ -->
   <div id="app">
 
-    <!-- HEADER -->
-    <header class="app-header">
+    <!-- HEADER commun -->
+    <header class="app-header" id="app-header">
       <div class="header-inner">
         <div class="logo">
           <span class="logo-icon">⚽</span>
@@ -44,306 +47,413 @@
         </div>
         <div class="session-badge" id="session-badge">—</div>
       </div>
-
-      <!-- STEP PROGRESS NAV -->
-      <nav class="steps-nav" id="steps-nav">
+      <!-- Steps nav (visible seulement dans la vue session) -->
+      <nav class="steps-nav hidden" id="steps-nav">
         <button class="step-btn active" data-step="1">
-          <span class="step-num">01</span>
-          <span class="step-label">Disponibilités</span>
+          <span class="step-num">01</span><span class="step-label">Disponibilités</span>
         </button>
         <div class="step-connector"></div>
         <button class="step-btn" data-step="2">
-          <span class="step-num">02</span>
-          <span class="step-label">Créneaux</span>
+          <span class="step-num">02</span><span class="step-label">Créneaux</span>
         </button>
         <div class="step-connector"></div>
         <button class="step-btn" data-step="3">
-          <span class="step-num">03</span>
-          <span class="step-label">Session</span>
+          <span class="step-num">03</span><span class="step-label">Session</span>
         </button>
       </nav>
     </header>
 
-    <!-- MAIN CONTENT AREA -->
-    <main class="app-main" id="app-main">
+    <!-- ══════════════════════════════════════════
+         MAIN
+    ══════════════════════════════════════════ -->
+    <main class="app-main">
 
-      <!-- ══════════════════════════════════════════════
-           ÉTAPE 1 — DISPONIBILITÉS (Grille Plany)
-      ══════════════════════════════════════════════ -->
-      <section class="step-panel active" id="step-1">
+      <!-- ────────────────────────────────────────
+           VUE 1 : DASHBOARD (Home)
+      ──────────────────────────────────────────── -->
+      <div id="view-dashboard" class="app-view">
 
-        <!-- Saisie du prénom -->
-        <div class="dispo-identity card">
-          <div class="form-group">
-            <label for="dispo-username">Votre prénom</label>
-            <input type="text" id="dispo-username" placeholder="ex: Julien" autocomplete="given-name" />
+        <!-- Email / Profil minimal -->
+        <div class="home-email-section card" id="home-email-section">
+          <div class="home-email-collapsed-row">
+            <span class="home-email-current" id="home-email-display">Identifiez-vous pour voir vos matchs</span>
+            <button class="btn btn-ghost btn-xs" id="home-email-change">Modifier</button>
+          </div>
+          <div class="home-email-form" style="margin-top:.65rem">
+            <p class="home-email-label">Votre email (pour retrouver vos matchs)</p>
+            <div class="home-email-row">
+              <input type="email" id="home-email-input" placeholder="vous@email.com" />
+              <button class="btn btn-primary btn-sm" id="home-email-submit">OK</button>
+            </div>
           </div>
         </div>
 
-        <!-- Grille Plany -->
-        <div class="plany-module card">
+        <!-- Section "Mes matchs" -->
+        <div class="card">
+          <div class="home-section-header">
+            <span class="home-section-title">🏅 Mes matchs</span>
+            <button class="btn btn-ghost btn-sm" id="home-toggle-view">📅 Vue agenda</button>
+          </div>
+          <div id="home-matches-container">
+            <div class="home-empty">
+              <div class="home-empty-icon">🏅</div>
+              <p class="home-empty-title">Chargement…</p>
+            </div>
+          </div>
+        </div>
 
-          <div class="plany-toolbar">
-            <div class="plany-filters">
-              <div class="plany-filter-group">
-                <button class="plany-btn plany-btn--week"    id="btn-filter-week">    <span class="plany-btn-icon">📅</span><span>SEMAINE</span></button>
-                <button class="plany-btn plany-btn--weekend" id="btn-filter-weekend"> <span class="plany-btn-icon">📅</span><span>WEEK-END</span></button>
-                <button class="plany-btn plany-btn--clear"   id="btn-filter-clear">   <span class="plany-btn-icon">🧹</span><span>EFFACER</span></button>
+        <!-- Accès rapide -->
+        <div class="card">
+          <h3 class="card-title">Accès rapide</h3>
+          <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+            <button class="btn btn-outline" onclick="showView('session');goToStep(1)">
+              ➕ Nouvelle session
+            </button>
+            <button class="btn btn-outline" onclick="showView('clubs')">
+              🏟 Annuaire clubs
+            </button>
+          </div>
+        </div>
+
+      </div><!-- /#view-dashboard -->
+
+      <!-- ────────────────────────────────────────
+           VUE 2 : SESSION (3 étapes)
+      ──────────────────────────────────────────── -->
+      <div id="view-session" class="app-view hidden">
+
+        <!-- ── ÉTAPE 1 — DISPONIBILITÉS ── -->
+        <section class="step-panel active" id="step-1">
+          <div class="panel-header">
+            <h2>Disponibilités</h2>
+            <p class="panel-sub">Indiquez vos créneaux libres pour trouver une date commune.</p>
+          </div>
+
+          <!-- Prénom -->
+          <div class="dispo-identity card">
+            <div class="form-group">
+              <label for="dispo-username">Votre prénom</label>
+              <input type="text" id="dispo-username" placeholder="ex: Julien" autocomplete="given-name" />
+            </div>
+          </div>
+
+          <!-- Grille Plany -->
+          <div class="plany-module card">
+            <div class="plany-toolbar">
+              <div class="plany-filters">
+                <div class="plany-filter-group">
+                  <button class="plany-btn plany-btn--week"    id="btn-filter-week">   <span class="plany-btn-icon">📅</span><span>SEMAINE</span></button>
+                  <button class="plany-btn plany-btn--weekend" id="btn-filter-weekend"><span class="plany-btn-icon">📅</span><span>WEEK-END</span></button>
+                  <button class="plany-btn plany-btn--clear"   id="btn-filter-clear">  <span class="plany-btn-icon">🧹</span><span>EFFACER</span></button>
+                </div>
+              </div>
+              <div class="plany-nav">
+                <button class="plany-nav-arrow" id="btn-week-prev">‹</button>
+                <span class="plany-period" id="plany-period-label">—</span>
+                <button class="plany-nav-arrow" id="btn-week-next">›</button>
+                <button class="plany-nav-cal"   id="btn-week-today" title="Aujourd'hui">📆</button>
               </div>
             </div>
-            <div class="plany-nav">
-              <button class="plany-nav-arrow" id="btn-week-prev" aria-label="Semaine précédente">‹</button>
-              <span class="plany-period" id="plany-period-label">—</span>
-              <button class="plany-nav-arrow" id="btn-week-next" aria-label="Semaine suivante">›</button>
-              <button class="plany-nav-cal"   id="btn-week-today" title="Aujourd'hui">📆</button>
+            <div class="plany-grid-wrapper">
+              <table class="plany-grid" id="plany-grid" role="grid"></table>
+            </div>
+            <div class="plany-legend">
+              <span class="legend-item"><span class="legend-dot legend-dot--ok"></span> Disponible</span>
+              <span class="legend-item"><span class="legend-dot legend-dot--no"></span> Indisponible</span>
+              <span class="legend-item"><span class="legend-dot legend-dot--empty"></span> Non renseigné</span>
             </div>
           </div>
 
-          <div class="plany-grid-wrapper">
-            <table class="plany-grid" id="plany-grid" role="grid" aria-label="Grille de disponibilités"></table>
+          <!-- Créneaux communs -->
+          <div class="card" id="dispo-common-panel">
+            <h3 class="card-title">🏆 Créneaux communs</h3>
+            <div id="dispo-common-slots">
+              <p class="empty-state">Renseignez vos disponibilités ci-dessus.</p>
+            </div>
           </div>
 
-          <div class="plany-legend">
-            <span class="legend-item"><span class="legend-dot legend-dot--ok"></span> Disponible</span>
-            <span class="legend-item"><span class="legend-dot legend-dot--no"></span> Indisponible</span>
-            <span class="legend-item"><span class="legend-dot legend-dot--empty"></span> Non renseigné</span>
+          <div class="step-actions">
+            <button class="btn btn-ghost" id="btn-skip-dispo">Passer →</button>
+            <button class="btn btn-primary" id="btn-dispo-next">Continuer →</button>
           </div>
-        </div>
+        </section>
 
-        <!-- Panneau Créneaux Communs -->
-        <div class="card" id="dispo-common-panel">
-          <h3 class="card-title">🏆 Créneaux communs</h3>
-          <div id="dispo-common-slots">
-            <p class="empty-state">Renseignez vos disponibilités dans la grille ci-dessus.</p>
+        <!-- ── ÉTAPE 2 — CRÉNEAUX ── -->
+        <section class="step-panel" id="step-2">
+          <div class="panel-header">
+            <h2>Créneaux de terrain</h2>
+            <p class="panel-sub">Collez une annonce pour extraire les créneaux automatiquement.</p>
           </div>
+
+          <div class="card card-accent">
+            <div class="card-title-row">
+              <h3 class="card-title">✦ Smart Parser</h3>
+              <span class="badge badge-new">IA locale</span>
+            </div>
+            <p class="card-desc">Copiez-collez le texte depuis un site de réservation.</p>
+            <textarea id="smart-parser-input" class="parser-textarea"
+              placeholder="Ex: Mardi 15 juillet — 20h00 à 21h00 — Terrain n°3 — 18€/h…" rows="5"></textarea>
+            <div class="parser-actions">
+              <button class="btn btn-accent" id="btn-parse">Extraire les créneaux</button>
+              <button class="btn btn-ghost btn-sm" id="btn-parse-clear">Effacer</button>
+            </div>
+            <div id="parser-result" class="parser-result hidden"></div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Créneaux proposés</h3>
+            <div id="slots-container"><p class="empty-state">Aucun créneau ajouté.</p></div>
+            <button class="btn btn-outline btn-sm" id="btn-add-slot-manual" style="margin-top:1rem">
+              + Ajouter manuellement
+            </button>
+          </div>
+
+          <div class="card card-weather" id="weather-card">
+            <h3 class="card-title">🌤 Météo du créneau sélectionné</h3>
+            <div id="weather-content"><p class="empty-state">Sélectionnez un créneau pour voir la météo.</p></div>
+          </div>
+
+          <div class="step-actions">
+            <button class="btn btn-ghost" id="btn-slots-back">← Retour</button>
+            <button class="btn btn-primary" id="btn-slots-next">Finaliser →</button>
+          </div>
+        </section>
+
+        <!-- ── ÉTAPE 3 — SESSION ── -->
+        <section class="step-panel" id="step-3">
+          <div class="panel-header">
+            <h2>Finalisation</h2>
+            <p class="panel-sub">Confirmez les détails et gérez les inscriptions.</p>
+          </div>
+
+          <!-- Mode lecture -->
+          <div class="card" id="session-view-card">
+            <div class="card-title-row">
+              <h3 class="card-title">📋 Infos de la session</h3>
+            </div>
+            <div id="session-view"></div>
+          </div>
+
+          <!-- Mode édition -->
+          <div class="card hidden" id="session-form">
+            <h3 class="card-title">✏️ Renseigner / Modifier</h3>
+
+            <!-- Recherche club -->
+            <div class="form-row" style="position:relative">
+              <div class="form-group">
+                <label for="session-club-search">Rechercher un club</label>
+                <input type="text" id="session-club-search" placeholder="ex: City Padel…" autocomplete="off" />
+                <div id="club-suggestions" class="club-suggestions hidden"></div>
+              </div>
+            </div>
+
+            <div class="form-row two-col">
+              <div class="form-group">
+                <label for="session-sport">Sport</label>
+                <input type="text" id="session-sport" placeholder="ex: Padel" />
+              </div>
+              <div class="form-group">
+                <label for="session-date">Date &amp; heure</label>
+                <input type="datetime-local" id="session-date" />
+              </div>
+            </div>
+
+            <div class="form-row two-col">
+              <div class="form-group">
+                <label for="session-venue">Lieu / Terrain</label>
+                <input type="text" id="session-venue" placeholder="ex: City Padel Bordeaux" />
+              </div>
+              <div class="form-group">
+                <label for="session-price">Prix total (€)</label>
+                <input type="number" id="session-price" placeholder="ex: 36" min="0" step="0.5" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="session-address">Adresse</label>
+                <input type="text" id="session-address" placeholder="12 rue des Sports, Bordeaux" />
+              </div>
+            </div>
+
+            <div class="form-row two-col">
+              <div class="form-group">
+                <label for="session-maps-url">Google Maps</label>
+                <input type="url" id="session-maps-url" placeholder="https://maps.google.com/…" />
+              </div>
+              <div class="form-group">
+                <label for="session-booking-url">Lien réservation</label>
+                <input type="url" id="session-booking-url" placeholder="https://…" />
+              </div>
+            </div>
+
+            <div class="form-row two-col">
+              <div class="form-group">
+                <label for="session-notes">Notes</label>
+                <input type="text" id="session-notes" placeholder="Parking, code d'accès…" />
+              </div>
+              <div class="form-group">
+                <label for="session-max-players">
+                  Max joueurs <span style="color:var(--accent);font-size:.7rem">(avant liste d'attente)</span>
+                </label>
+                <input type="number" id="session-max-players" value="10" min="1" max="50" />
+              </div>
+            </div>
+
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.5rem">
+              <button class="btn btn-primary" id="btn-save-session">💾 Enregistrer</button>
+              <button class="btn btn-ghost"   id="btn-cancel-edit">Annuler</button>
+            </div>
+          </div>
+
+          <!-- Inscrits -->
+          <div class="card">
+            <h3 class="card-title">
+              Inscrits
+              <span id="player-count" class="count-badge">0</span>
+              <span style="font-size:.7rem;color:var(--text-sub);font-weight:400"> / </span>
+              <span id="player-max" class="count-badge count-badge--grey">10</span>
+            </h3>
+            <div id="players-list"><p class="empty-state">Aucun inscrit.</p></div>
+            <div class="form-row two-col" style="margin-top:1rem">
+              <div class="form-group">
+                <input type="text" id="new-player-name" placeholder="Prénom" />
+              </div>
+              <button class="btn btn-outline" id="btn-add-player">+ Inscrire</button>
+            </div>
+          </div>
+
+          <!-- Liste d'attente -->
+          <div class="card">
+            <h3 class="card-title">Liste d'attente <span id="waitlist-count" class="count-badge count-badge--grey">0</span></h3>
+            <div id="waitlist-container"><p class="empty-state">Liste d'attente vide.</p></div>
+          </div>
+
+          <!-- Exports -->
+          <div class="card card-export">
+            <h3 class="card-title">Exporter</h3>
+            <div class="export-actions">
+              <button class="btn btn-export" id="btn-export-xlsx"><span class="export-icon">📊</span> Excel (.xlsx)</button>
+              <button class="btn btn-export" id="btn-export-ics"><span class="export-icon">📅</span> Calendrier (.ics)</button>
+            </div>
+          </div>
+
+          <div class="step-actions">
+            <button class="btn btn-ghost" id="btn-final-back">← Retour</button>
+          </div>
+        </section>
+
+      </div><!-- /#view-session -->
+
+      <!-- ────────────────────────────────────────
+           VUE 3 : CLUBS
+      ──────────────────────────────────────────── -->
+      <div id="view-clubs" class="app-view hidden">
+        <div class="panel-header">
+          <h2>🏟 Clubs</h2>
+          <p class="panel-sub">Trouvez un terrain et organisez un match.</p>
         </div>
 
-        <div class="step-actions">
-          <button class="btn btn-ghost" id="btn-skip-dispo">Passer cette étape →</button>
-          <button class="btn btn-primary" id="btn-dispo-next">Dispo trouvée, continuer →</button>
+        <div class="clubs-search-bar">
+          <input type="search" id="clubs-search" placeholder="Rechercher un club, un sport…" />
         </div>
-      </section>
 
-      <!-- Overlays grille dispo (hors flux de l'étape) -->
-      <!-- Bottom sheet bulk (Semaine / Week-end) -->
-      <div class="plany-bulk-overlay hidden" id="plany-bulk-overlay" role="dialog" aria-modal="true">
-        <div class="plany-bulk-sheet">
-          <p class="plany-bulk-title" id="plany-bulk-title">Que faire ?</p>
-          <button class="plany-bulk-btn plany-bulk-btn--ok"     data-bulk="ok">✅ Disponible pour tous ces jours</button>
-          <button class="plany-bulk-btn plany-bulk-btn--no"     data-bulk="no">❌ Indisponible pour tous ces jours</button>
-          <button class="plany-bulk-btn plany-bulk-btn--clear"  data-bulk="clear">🗑️ Effacer ces jours</button>
-          <button class="plany-bulk-btn plany-bulk-btn--cancel" id="btn-bulk-cancel">Annuler</button>
+        <div id="clubs-list">
+          <p class="empty-state">Chargement des clubs…</p>
         </div>
       </div>
 
-      <!-- Bottom sheet cellule (mobile) -->
-      <div class="plany-cell-overlay hidden" id="plany-cell-overlay" role="dialog" aria-modal="true">
-        <div class="plany-cell-sheet" id="plany-cell-sheet">
-          <p class="plany-cell-title" id="plany-cell-title">—</p>
-          <div id="plany-cell-options"></div>
-          <button class="plany-cell-close" id="btn-cell-close">FERMER</button>
+      <!-- ────────────────────────────────────────
+           VUE 4 : PROFIL / PARAMÈTRES
+      ──────────────────────────────────────────── -->
+      <div id="view-profile" class="app-view hidden">
+        <div class="panel-header">
+          <h2>⚙️ Paramètres</h2>
+          <p class="panel-sub">Vos préférences et infos de compte.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">Profil</h3>
+          <div class="form-group" style="margin-bottom:.75rem">
+            <label for="profile-name">Votre prénom (affiché sur la grille)</label>
+            <input type="text" id="profile-name" placeholder="ex: Julien" />
+          </div>
+          <div class="form-group" style="margin-bottom:.75rem">
+            <label for="profile-email">Email (pour retrouver vos matchs)</label>
+            <input type="email" id="profile-email" placeholder="vous@email.com" />
+          </div>
+          <button class="btn btn-primary" id="btn-save-profile">Enregistrer</button>
+        </div>
+        <div class="card">
+          <h3 class="card-title">Synchronisation</h3>
+          <p style="font-size:.82rem;color:var(--text-sub);margin-bottom:.75rem">
+            Synchroniser manuellement les données avec Google Sheets.
+          </p>
+          <button class="btn btn-outline" id="btn-force-sync">🔄 Synchroniser maintenant</button>
+        </div>
+        <div class="card">
+          <h3 class="card-title">GAS URL</h3>
+          <p style="font-size:.75rem;color:var(--text-sub);margin-bottom:.5rem">
+            Configurée dans <code>app.js → CONFIG.GAS_URL</code>
+          </p>
         </div>
       </div>
 
-      <!-- ══════════════════════════════════════════════
-           ÉTAPE 2 — CRÉNEAUX DE TERRAINS
-      ══════════════════════════════════════════════ -->
-      <section class="step-panel" id="step-2">
-        <div class="panel-header">
-          <h2>Recherche de créneaux</h2>
-          <p class="panel-sub">Collez une annonce de réservation pour en extraire les créneaux automatiquement.</p>
-        </div>
+    </main><!-- /.app-main -->
 
-        <!-- Smart Parser -->
-        <div class="card card-accent">
-          <div class="card-title-row">
-            <h3 class="card-title">✦ Smart Parser</h3>
-            <span class="badge badge-new">IA locale</span>
-          </div>
-          <p class="card-desc">Collez ci-dessous le texte brut copié depuis un site de réservation de terrain.</p>
-          <textarea
-            id="smart-parser-input"
-            class="parser-textarea"
-            placeholder="Ex: Mardi 15 juillet — 20h00 à 21h00 — Terrain synthétique n°3 — 18€/h..."
-            rows="5"
-          ></textarea>
-          <div class="parser-actions">
-            <button class="btn btn-accent" id="btn-parse">Extraire les créneaux</button>
-            <button class="btn btn-ghost btn-sm" id="btn-parse-clear">Effacer</button>
-          </div>
-          <!-- Résultat du parser -->
-          <div id="parser-result" class="parser-result hidden"></div>
-        </div>
-
-        <!-- Créneaux proposés -->
-        <div class="card">
-          <h3 class="card-title">Créneaux proposés</h3>
-          <div id="slots-container">
-            <p class="empty-state">Aucun créneau ajouté pour l'instant.</p>
-          </div>
-          <button class="btn btn-outline btn-sm" id="btn-add-slot-manual" style="margin-top:1rem">
-            + Ajouter manuellement
-          </button>
-        </div>
-
-        <!-- Météo -->
-        <div class="card card-weather" id="weather-card">
-          <h3 class="card-title">🌤 Météo du jour sélectionné</h3>
-          <div id="weather-content">
-            <p class="empty-state">Sélectionnez un créneau pour voir la météo.</p>
-          </div>
-        </div>
-
-        <div class="step-actions">
-          <button class="btn btn-ghost" id="btn-slots-back">← Retour</button>
-          <button class="btn btn-primary" id="btn-slots-next">Créneau retenu, finaliser →</button>
-        </div>
-      </section>
-
-      <!-- ══════════════════════════════════════════════
-           ÉTAPE 3 — SESSION FINALE
-      ══════════════════════════════════════════════ -->
-      <section class="step-panel" id="step-3">
-        <div class="panel-header">
-          <h2>Finalisation</h2>
-          <p class="panel-sub">Confirmez les détails et gérez les inscriptions.</p>
-        </div>
-
-        <!-- ── MODE LECTURE : fiche récap (injectée par renderSession) ── -->
-        <div class="card" id="session-view-card">
-          <div class="card-title-row">
-            <h3 class="card-title">📋 Infos de la session</h3>
-          </div>
-          <!-- Contenu injecté par renderSession() -->
-          <div id="session-view"></div>
-        </div>
-
-        <!-- ── MODE ÉDITION : formulaire complet ── -->
-        <div class="card hidden" id="session-form">
-          <h3 class="card-title">✏️ Renseigner / Modifier la session</h3>
-
-          <!-- Recherche club -->
-          <div class="form-row" style="position:relative">
-            <div class="form-group">
-              <label for="session-club-search">Rechercher un club enregistré</label>
-              <input type="text" id="session-club-search" placeholder="ex: City Padel…" autocomplete="off" />
-              <div id="club-suggestions" class="club-suggestions hidden"></div>
-            </div>
-          </div>
-
-          <!-- Date & heure -->
-          <div class="form-row">
-            <div class="form-group">
-              <label for="session-date">Date &amp; heure</label>
-              <input type="datetime-local" id="session-date" />
-            </div>
-          </div>
-
-          <!-- Lieu + Prix -->
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="session-venue">Lieu / Terrain</label>
-              <input type="text" id="session-venue" placeholder="ex: City Padel Bordeaux" />
-            </div>
-            <div class="form-group">
-              <label for="session-price">Prix total (€)</label>
-              <input type="number" id="session-price" placeholder="ex: 36" min="0" step="0.5" />
-            </div>
-          </div>
-
-          <!-- Adresse -->
-          <div class="form-row">
-            <div class="form-group">
-              <label for="session-address">Adresse</label>
-              <input type="text" id="session-address" placeholder="12 rue des Sports, Bordeaux" />
-            </div>
-          </div>
-
-          <!-- Google Maps URL -->
-          <div class="form-row">
-            <div class="form-group">
-              <label for="session-maps-url">Lien Google Maps</label>
-              <input type="url" id="session-maps-url" placeholder="https://maps.google.com/…" />
-            </div>
-          </div>
-
-          <!-- Lien réservation -->
-          <div class="form-row">
-            <div class="form-group">
-              <label for="session-booking-url">Lien de réservation</label>
-              <input type="url" id="session-booking-url" placeholder="https://…" />
-            </div>
-          </div>
-
-          <!-- Notes + Max joueurs -->
-          <div class="form-row two-col">
-            <div class="form-group">
-              <label for="session-notes">Notes</label>
-              <input type="text" id="session-notes" placeholder="Parking, code d'accès…" />
-            </div>
-            <div class="form-group">
-              <label for="session-max-players">Joueurs max <span style="color:var(--accent);font-size:.7rem">(avant liste d'attente)</span></label>
-              <input type="number" id="session-max-players" value="10" min="1" max="50" />
-            </div>
-          </div>
-
-          <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.5rem">
-            <button class="btn btn-primary" id="btn-save-session">💾 Enregistrer</button>
-            <button class="btn btn-ghost"   id="btn-cancel-edit">Annuler</button>
-          </div>
-        </div>
-
-        <!-- Inscriptions -->
-        <div class="card">
-          <h3 class="card-title">
-            Inscrits <span id="player-count" class="count-badge">0</span>
-            <span style="font-size:.7rem;color:var(--text-sub);font-weight:400"> / </span>
-            <span id="player-max" class="count-badge count-badge--grey">10</span>
-          </h3>
-          <div id="players-list">
-            <p class="empty-state">Aucun inscrit pour l'instant.</p>
-          </div>
-          <div class="form-row two-col" style="margin-top:1rem">
-            <div class="form-group">
-              <input type="text" id="new-player-name" placeholder="Prénom" />
-            </div>
-            <button class="btn btn-outline" id="btn-add-player">+ Inscrire</button>
-          </div>
-        </div>
-
-        <!-- Liste d'attente -->
-        <div class="card">
-          <h3 class="card-title">Liste d'attente <span id="waitlist-count" class="count-badge count-badge--grey">0</span></h3>
-          <div id="waitlist-container">
-            <p class="empty-state">Liste d'attente vide.</p>
-          </div>
-        </div>
-
-        <!-- Exports -->
-        <div class="card card-export">
-          <h3 class="card-title">Exporter</h3>
-          <div class="export-actions">
-            <button class="btn btn-export" id="btn-export-xlsx"><span class="export-icon">📊</span> Export Excel (.xlsx)</button>
-            <button class="btn btn-export" id="btn-export-ics"><span class="export-icon">📅</span> Ajouter au calendrier (.ics)</button>
-          </div>
-        </div>
-
-        <div class="step-actions">
-          <button class="btn btn-ghost" id="btn-final-back">← Retour</button>
-        </div>
-      </section>
-
-    </main>
-
-    <!-- SYNC STATUS -->
-    <footer class="app-footer">
+    <!-- SYNC STATUS FOOTER -->
+    <footer class="app-footer" style="display:none" id="app-footer-sync">
       <span id="sync-status" class="sync-status">⏳ Vérification…</span>
-      <button class="btn btn-ghost btn-xs" id="btn-force-sync">Synchroniser</button>
+      <button class="btn btn-ghost btn-xs" id="btn-force-sync-footer">Sync</button>
     </footer>
 
   </div><!-- /#app -->
 
-  <!-- MODAL — Ajout manuel créneau -->
+  <!-- ══════════════════════════════════════════
+       BOTTOM NAVIGATION
+  ══════════════════════════════════════════ -->
+  <nav class="bottom-nav">
+    <button class="bnav-btn active" data-view="dashboard">
+      <span class="bnav-icon">🏠</span>Accueil
+    </button>
+    <button class="bnav-btn" data-view="session">
+      <span class="bnav-icon">📋</span>Session
+    </button>
+    <button class="bnav-btn" data-view="clubs">
+      <span class="bnav-icon">🏟</span>Clubs
+    </button>
+    <button class="bnav-btn" data-view="profile">
+      <span class="bnav-icon">⚙️</span>Profil
+    </button>
+  </nav>
+
+  <!-- FAB -->
+  <button class="fab-btn" id="fab-new-match" title="Créer un match">＋</button>
+
+  <!-- ══════════════════════════════════════════
+       OVERLAYS
+  ══════════════════════════════════════════ -->
+
+  <!-- Grille dispo — bulk -->
+  <div class="plany-bulk-overlay hidden" id="plany-bulk-overlay" role="dialog" aria-modal="true">
+    <div class="plany-bulk-sheet">
+      <p class="plany-bulk-title" id="plany-bulk-title">Que faire ?</p>
+      <button class="plany-bulk-btn plany-bulk-btn--ok"     data-bulk="ok">✅ Disponible pour tous ces jours</button>
+      <button class="plany-bulk-btn plany-bulk-btn--no"     data-bulk="no">❌ Indisponible pour tous ces jours</button>
+      <button class="plany-bulk-btn plany-bulk-btn--clear"  data-bulk="clear">🗑️ Effacer ces jours</button>
+      <button class="plany-bulk-btn plany-bulk-btn--cancel" id="btn-bulk-cancel">Annuler</button>
+    </div>
+  </div>
+
+  <!-- Grille dispo — cellule (mobile) -->
+  <div class="plany-cell-overlay hidden" id="plany-cell-overlay" role="dialog" aria-modal="true">
+    <div class="plany-cell-sheet">
+      <p class="plany-cell-title" id="plany-cell-title">—</p>
+      <div id="plany-cell-options"></div>
+      <button class="plany-cell-close" id="btn-cell-close">FERMER</button>
+    </div>
+  </div>
+
+  <!-- Modal créneau manuel -->
   <div class="modal-overlay hidden" id="modal-slot">
     <div class="modal">
       <h3>Ajouter un créneau</h3>
@@ -363,10 +473,57 @@
     </div>
   </div>
 
-  <!-- TOAST NOTIFICATION -->
+  <!-- Fiche détail club -->
+  <div class="hidden" id="club-detail-overlay">
+    <div class="club-detail-sheet">
+      <div id="club-detail-content"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
+  <!-- Scripts (ordre important) -->
   <script src="dispo.js"></script>
+  <script src="home.js"></script>
+  <script src="clubs.js"></script>
   <script src="app.js"></script>
+
+  <!-- Profil inline (sync prénom ↔ dispo-username) -->
+  <script>
+    $(document).ready(function(){
+      // Sync prénom depuis localStorage
+      const savedName  = localStorage.getItem('sportsync_username')||'';
+      const savedEmail = localStorage.getItem('sportsync_email')||'';
+      $('#profile-name').val(savedName);
+      $('#profile-email').val(savedEmail);
+      if(savedEmail) $('#home-email-display').text('📧 '+savedEmail);
+
+      $('#btn-save-profile').on('click',function(){
+        const name  = $('#profile-name').val().trim();
+        const email = $('#profile-email').val().trim().toLowerCase();
+        if(name)  localStorage.setItem('sportsync_username',name);
+        if(email) localStorage.setItem('sportsync_email',email);
+        if(window.SportSyncDispo && name) {
+          window.SportSyncDispo.init && window.SportSyncDispo.refresh && window.SportSyncDispo.refresh();
+        }
+        showToast && showToast('Profil enregistré ✓','success');
+      });
+
+      // Afficher la vue session quand on clique sur le step-nav
+      $('#steps-nav').on('click','.step-btn',function(){
+        $('#view-session').removeClass('hidden');
+        $('.app-view').not('#view-session').addClass('hidden');
+      });
+
+      // Afficher/masquer le step-nav selon la vue
+      $(document).on('click','.bnav-btn',function(){
+        const v=$(this).data('view');
+        $('#steps-nav').toggleClass('hidden', v!=='session');
+      });
+      // Masquer step-nav par défaut (on est sur dashboard)
+      $('#steps-nav').addClass('hidden');
+    });
+  </script>
 </body>
 </html>
