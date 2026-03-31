@@ -96,6 +96,7 @@ function doPost(e) {
     var result;
     switch (action) {
       case 'setDispoCell':       result = setDispoCell(body, sessionId);            break;
+      case 'batchSetDispos':    result = batchSetDispos(body, sessionId);         break;
       case 'addSlot':            result = addSlot(body, sessionId);                 break;
       case 'voteSlot':           result = voteSlot(body.id, body.delta, sessionId); break;
       case 'addPlayer':          result = addPlayer(body, sessionId);               break;
@@ -497,6 +498,110 @@ function setDispoCell(body, sessionId) {
 
     bumpTimestamp();
     return { ok: true, timestamp: getTimestamp() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// ÉCRITURE — Batch dispos (envoi groupé côté client)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Traite plusieurs cellules de disponibilité en une seule requête.
+ * body.cells = [{ name, date, slot, state, sessionId }, ...]
+ * Appelle setDispoCell pour chaque cellule (Lock global).
+ */
+function batchSetDispos(body, sessionId) {
+  var cells = body.cells || [];
+  if (!cells.length) return { ok: true, processed: 0 };
+
+  // Un seul Lock pour tout le batch
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(15000); }
+  catch(e) { return { ok: false, error: 'Lock timeout batch' }; }
+
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.DISPOS);
+    // Relire une seule fois pour tout le batch (optimisation)
+    var data  = sheet.getDataRange().getValues();
+    var h     = data[0].map(String);
+
+    var idIdx  = h.indexOf('id');
+    var nmIdx  = h.indexOf('name');
+    var dtIdx  = h.indexOf('date');
+    var slIdx  = h.indexOf('slot');
+    var stIdx  = h.indexOf('state');
+    var sidIdx = h.indexOf('sessionId');
+    var updIdx = h.indexOf('updatedAt');
+
+    // Migration auto
+    if (slIdx === -1 || stIdx === -1) {
+      sheet.getRange(1, 1, 1, SCHEMAS.Dispos.length).setValues([SCHEMAS.Dispos]);
+      idIdx=0;nmIdx=1;dtIdx=2;slIdx=3;stIdx=4;sidIdx=5;updIdx=6;
+      data = sheet.getDataRange().getValues();
+      h    = data[0].map(String);
+    }
+
+    var now = new Date().toISOString();
+    var processed = 0;
+
+    cells.forEach(function(cell) {
+      var cellSid  = cell.sessionId || sessionId;
+      var name     = String(cell.name  || 'Anonyme');
+      var date     = String(cell.date  || '');
+      var slot     = String(cell.slot  || '');
+      var newState = String(cell.state || '');
+
+      // Trouver les lignes correspondantes (re-lire data[] à jour)
+      // Note : après des suppressions, les index de data[] sont décalés
+      // On relit le sheet à chaque cellule si nécessaire (sécurité)
+      // Mais pour la perf, on travaille sur data[] en mémoire
+
+      var matchingRows = [];
+      for (var i = 1; i < data.length; i++) {
+        if (!data[i] || data[i].length === 0) continue;
+        if (String(data[i][nmIdx])  === name &&
+            formatDateValue(data[i][dtIdx]) === date &&
+            String(data[i][slIdx])  === slot &&
+            String(data[i][sidIdx]) === cellSid) {
+          matchingRows.push(i);
+        }
+      }
+
+      if (matchingRows.length > 0) {
+        if (newState === '') {
+          // Supprimer en partant du bas
+          for (var k = matchingRows.length - 1; k >= 0; k--) {
+            sheet.deleteRow(matchingRows[k] + 1);
+            // Invalider la ligne dans data[] pour éviter des faux positifs
+            data[matchingRows[k]] = [];
+          }
+        } else {
+          // Supprimer les doublons, mettre à jour le premier
+          for (var k = matchingRows.length - 1; k >= 1; k--) {
+            sheet.deleteRow(matchingRows[k] + 1);
+            data[matchingRows[k]] = [];
+          }
+          sheet.getRange(matchingRows[0]+1, stIdx+1).setValue(newState);
+          if (updIdx >= 0) sheet.getRange(matchingRows[0]+1, updIdx+1).setValue(now);
+          if (stIdx < data[matchingRows[0]].length) data[matchingRows[0]][stIdx] = newState;
+        }
+      } else if (newState !== '') {
+        var newId = generateId();
+        sheet.appendRow([newId, name, date, slot, newState, cellSid, now]);
+        // Ajouter à data[] pour les prochaines recherches du même batch
+        var newRow = new Array(h.length).fill('');
+        newRow[idIdx]=newId; newRow[nmIdx]=name; newRow[dtIdx]=date;
+        newRow[slIdx]=slot; newRow[stIdx]=newState; newRow[sidIdx]=cellSid;
+        if(updIdx>=0) newRow[updIdx]=now;
+        data.push(newRow);
+      }
+      processed++;
+    });
+
+    bumpTimestamp();
+    return { ok: true, processed: processed, timestamp: getTimestamp() };
   } finally {
     lock.releaseLock();
   }

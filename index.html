@@ -172,6 +172,9 @@
             </div>
           </div>
 
+          <!-- Badge "cellules en cours d'envoi" -->
+          <div id="dispo-pending-badge" class="dispo-pending-badge hidden"></div>
+
           <div class="step-actions">
             <button class="btn btn-ghost" id="btn-skip-dispo">Passer →</button>
             <button class="btn btn-primary" id="btn-dispo-next">Continuer →</button>
@@ -407,6 +410,19 @@
     </footer>
 
   </div><!-- /#app -->
+
+  <!-- FOOTER SYNC (universel) -->
+  <div id="sync-footer" class="sync-footer">
+    <div class="sync-footer-left">
+      <span class="sync-footer-status" id="sync-footer-dot"></span>
+      <span class="sync-footer-label">
+        Dernière sync : <strong class="sync-footer-time">—</strong>
+      </span>
+    </div>
+    <button class="sync-footer-btn" title="Actualiser les données">
+      🔄 Actualiser
+    </button>
+  </div>
 
   <!-- ══════════════════════════════════════════
        BOTTOM NAVIGATION

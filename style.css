@@ -809,3 +809,108 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   font-size: .73rem;
   color: var(--text-sub);
 }
+
+/* ════════════════════════════════════════════════════
+   FOOTER SYNC — barre de synchronisation universelle
+════════════════════════════════════════════════════ */
+
+.sync-footer {
+  position: fixed;
+  bottom: 60px;     /* juste au-dessus de la bottom nav */
+  left: 0; right: 0;
+  z-index: 85;
+  background: rgba(15,17,23,.90);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .35rem .85rem;
+  gap: .75rem;
+  height: 36px;
+}
+
+.sync-footer-left {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sync-footer-label {
+  font-size: .72rem;
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sync-footer-time {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.sync-footer-status {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+  transition: background .3s;
+}
+
+.sync-footer-status.ok     { background: var(--accent); }
+.sync-footer-status.syncing {
+  background: var(--accent2);
+  animation: pulse 1s ease infinite;
+}
+
+.sync-footer-btn {
+  background: none;
+  border: 1px solid var(--border-light);
+  color: var(--text-sub);
+  border-radius: var(--radius-sm);
+  padding: .2rem .65rem;
+  font-size: .72rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s;
+  flex-shrink: 0;
+}
+.sync-footer-btn:hover { color: var(--accent); border-color: var(--accent-dim); }
+
+/* Ajuster le padding du main pour la sync-footer */
+.app-main { padding-bottom: 116px !important; } /* 60px bottom-nav + 36px sync-footer + 20px marge */
+
+/* ════════════════════════════════════════════════════
+   BADGE "en cours d'envoi"
+════════════════════════════════════════════════════ */
+
+.dispo-pending-badge {
+  background: rgba(245,158,11,.15);
+  border: 1px solid rgba(245,158,11,.35);
+  color: var(--accent2);
+  font-size: .75rem;
+  font-weight: 600;
+  padding: .35rem .75rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: .5rem;
+  text-align: center;
+  animation: pulse 1.4s ease infinite;
+}
+
+/* ════════════════════════════════════════════════════
+   CELLULE DISPO EN ATTENTE D'ENVOI
+════════════════════════════════════════════════════ */
+
+.dispo-cell--pending::after {
+  content: '';
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--accent2);
+  animation: pulse 1s ease infinite;
+}
