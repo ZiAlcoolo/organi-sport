@@ -548,7 +548,7 @@
       return `<span style="width:6px;height:6px;border-radius:50%;background:${c};display:inline-block;margin:0 1px" title="${e.name}"></span>`;
     }).join('');
     const more = byName.size > 5 ? `<span style="font-size:.6rem;color:var(--dispo-sub)">+${byName.size - 5}</span>` : '';
-    return `<div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:1px">${dots}${more}</div>`;
+    return `<div class="dispo-dots" style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:1px">${dots}${more}</div>`;
   }
 
   function bindCellEvents($grid) {

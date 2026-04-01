@@ -270,6 +270,7 @@
   flex-direction: column;
   align-items: stretch;
   z-index: 10;
+  /* padding-bottom: 5px; */
 }
 
 .cell-hover-btn {
@@ -293,6 +294,17 @@
 .dispo-cell[data-state="no"] .cell-hover-options,
 .dispo-cell[data-state="ok"] .cell-hover-options {
   display: none;
+}
+
+.dispo-cell .dispo-dots {
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+.dispo-cell[data-state="ok"] .dispo-dots,
+.dispo-cell[data-state="no"] .dispo-dots {
+  top: unset !important;
+  transform: translate(-50%, 0%) !important;
 }
 
 
@@ -369,6 +381,11 @@
   /* Sur desktop, le bottom sheet mobile est désactivé */
   #plany-cell-overlay {
     display: none !important;
+  }
+
+  .dispo-cell .dispo-dots {
+    top: unset !important;
+    transform: translate(-50%, 0%) !important;
   }
 }
 
