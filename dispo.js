@@ -35,8 +35,8 @@
 
   const SLOTS = [
     { key: 'morning', labelShort: 'Matin', labelLong: 'Matin', sub: '6H à 12H' },
-    { key: 'afternoon', labelShort: 'Après-midi', labelLong: 'Après-midi', sub: '12H à 18H' },
-    { key: 'evening', labelShort: 'Soir', labelLong: 'Soir', sub: 'à partir de 18H' },
+    { key: 'afternoon', labelShort: 'Aprem', labelLong: 'Après-midi', sub: '12H à 18H' },
+    { key: 'evening', labelShort: 'Soir', labelLong: 'Soir', sub: '18H à 23H' },
   ];
 
   const DAYS_FR = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
