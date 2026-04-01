@@ -53,7 +53,7 @@
 /* ── FAB ──────────────────────────────────────────── */
 .fab-btn {
   position: fixed;
-  bottom: 76px;
+  bottom: 100px;
   right: 1rem;
   z-index: 95;
   width: 54px; height: 54px;
@@ -69,9 +69,13 @@
   justify-content: center;
   box-shadow: 0 4px 20px rgba(74,222,128,.35);
   transition: transform .15s, box-shadow .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .fab-btn:hover { transform: scale(1.08); box-shadow: 0 6px 24px rgba(74,222,128,.5); }
 .fab-btn:active { transform: scale(.95); }
+.fab-btn .icon8 { height: 1rem; }
 
 /* ── Section email ────────────────────────────────── */
 .home-email-section {
