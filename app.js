@@ -585,7 +585,7 @@ function showToast(msg,type){
 function setOfflineMode(offline){
   state.isOffline=offline;$('#offline-banner').toggleClass('hidden',!offline);
   $('input,textarea').prop('disabled',offline);
-  $('button').not('.btn-ghost,.btn-delete,.vote-btn,.plany-btn,.plany-nav-arrow,.plany-nav-cal,.plany-cell-close,.plany-bulk-btn,.cell-sheet-btn,.session-maps-btn,.bnav-btn,.fab-btn,.sync-footer-btn').prop('disabled',offline);
+  $('button').not('.btn-ghost,.btn-delete,.vote-btn,.plany-btn,.plany-nav-arrow,.plany-nav-cal,.plany-cell-close,.plany-bulk-btn,.cell-sheet-btn,.session-maps-btn,.bnav-btn,.fab-btn,.sync-btn').prop('disabled',offline);
   if(offline)setSyncStatus('📵 Hors ligne','err');
 }
 
@@ -639,8 +639,8 @@ function bindEvents(){
   $(document).on('click','#btn-export-xlsx',exportXLSX);
   $(document).on('click','#btn-export-ics', exportICS);
 
-  // Sync footer — tous les boutons ".sync-footer-btn"
-  $(document).on('click','.sync-footer-btn',async function(){
+  // Sync — tous les boutons ".sync-btn"
+  $(document).on('click','.sync-btn',async function(){
     await syncFromSheets();
     if(window.SportSyncDispo) window.SportSyncDispo.refresh(true);
   });
