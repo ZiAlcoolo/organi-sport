@@ -7,20 +7,11 @@
   <meta name="description" content="Organisez vos sessions de sport entre amis" />
   <title>SportSync</title>
   <link rel="manifest" href="manifest.json" />
-
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
-
-  <!-- jQuery -->
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"
-    integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-
-  <!-- SheetJS -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-
-  <!-- Styles -->
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="dispo.css" />
   <link rel="stylesheet" href="home.css" />
@@ -28,52 +19,29 @@
 </head>
 <body>
 
-  <!-- ── OFFLINE BANNER ──────────────────────────── -->
   <div id="offline-banner" class="offline-banner hidden">
     <span class="offline-dot"></span> Mode consultation — modifications désactivées
   </div>
 
-  <!-- ══════════════════════════════════════════════
-       APP SHELL
-  ══════════════════════════════════════════════ -->
   <div id="app">
-
-    <!-- HEADER commun -->
     <header class="app-header" id="app-header">
       <div class="header-inner">
-        <div class="logo">
-          <span class="logo-icon">⚽</span>
-          <span class="logo-text">Sport<strong>Sync</strong></span>
-        </div>
+        <div class="logo"><span class="logo-icon">⚽</span><span class="logo-text">Sport<strong>Sync</strong></span></div>
         <div class="session-badge" id="session-badge">—</div>
       </div>
-      <!-- Steps nav (visible seulement dans la vue session) -->
       <nav class="steps-nav hidden" id="steps-nav">
-        <button class="step-btn active" data-step="1">
-          <span class="step-num">01</span><span class="step-label">Disponibilités</span>
-        </button>
+        <button class="step-btn active" data-step="1"><span class="step-num">01</span><span class="step-label">Disponibilités</span></button>
         <div class="step-connector"></div>
-        <button class="step-btn" data-step="2">
-          <span class="step-num">02</span><span class="step-label">Créneaux</span>
-        </button>
+        <button class="step-btn" data-step="2"><span class="step-num">02</span><span class="step-label">Créneaux</span></button>
         <div class="step-connector"></div>
-        <button class="step-btn" data-step="3">
-          <span class="step-num">03</span><span class="step-label">Session</span>
-        </button>
+        <button class="step-btn" data-step="3"><span class="step-num">03</span><span class="step-label">Session</span></button>
       </nav>
     </header>
 
-    <!-- ══════════════════════════════════════════
-         MAIN
-    ══════════════════════════════════════════ -->
     <main class="app-main">
 
-      <!-- ────────────────────────────────────────
-           VUE 1 : DASHBOARD (Home)
-      ──────────────────────────────────────────── -->
+      <!-- ── DASHBOARD ── -->
       <div id="view-dashboard" class="app-view">
-
-        <!-- Email / Profil minimal -->
         <div class="home-email-section card" id="home-email-section">
           <div class="home-email-collapsed-row">
             <span class="home-email-current" id="home-email-display">Identifiez-vous pour voir vos matchs</span>
@@ -87,71 +55,53 @@
             </div>
           </div>
         </div>
-
-        <!-- Section "Mes matchs" -->
         <div class="card">
           <div class="home-section-header">
             <span class="home-section-title">🏅 Mes matchs</span>
             <button class="btn btn-ghost btn-sm" id="home-toggle-view">📅 Vue agenda</button>
           </div>
           <div id="home-matches-container">
-            <div class="home-empty">
-              <div class="home-empty-icon">🏅</div>
-              <p class="home-empty-title">Chargement…</p>
-            </div>
+            <div class="home-empty"><div class="home-empty-icon">🏅</div><p class="home-empty-title">Chargement…</p></div>
           </div>
         </div>
-
-        <!-- Accès rapide -->
         <div class="card">
           <h3 class="card-title">Accès rapide</h3>
           <div style="display:flex;gap:.6rem;flex-wrap:wrap">
-            <button class="btn btn-outline" onclick="showView('session');goToStep(1)">
-              ➕ Nouvelle session
-            </button>
-            <button class="btn btn-outline" onclick="showView('clubs')">
-              🏟 Annuaire clubs
-            </button>
+            <button class="btn btn-outline btn-new-session">➕ Nouvelle session</button>
+            <button class="btn btn-outline" onclick="showView('clubs')">🏟 Annuaire clubs</button>
           </div>
         </div>
+      </div>
 
-      </div><!-- /#view-dashboard -->
-
-      <!-- ────────────────────────────────────────
-           VUE 2 : SESSION (3 étapes)
-      ──────────────────────────────────────────── -->
+      <!-- ── SESSION ── -->
       <div id="view-session" class="app-view hidden">
 
-        <!-- ── ÉTAPE 1 — DISPONIBILITÉS ── -->
+        <!-- ÉTAPE 1 — DISPONIBILITÉS -->
         <section class="step-panel active" id="step-1">
           <div class="panel-header">
             <h2>Disponibilités</h2>
             <p class="panel-sub">Indiquez vos créneaux libres pour trouver une date commune.</p>
           </div>
-
-          <!-- Prénom -->
           <div class="dispo-identity card">
             <div class="form-group">
               <label for="dispo-username">Votre prénom</label>
               <input type="text" id="dispo-username" placeholder="ex: Julien" autocomplete="given-name" />
             </div>
           </div>
-
-          <!-- Grille Plany -->
           <div class="plany-module card">
             <div class="plany-toolbar">
               <div class="plany-filters">
                 <div class="plany-filter-group">
-                  <button class="plany-btn plany-btn--week"    id="btn-filter-week">   <span class="plany-btn-icon">📅</span><span>SEMAINE</span></button>
+                  <button class="plany-btn plany-btn--week" id="btn-filter-week"><span class="plany-btn-icon">📅</span><span>SEMAINE</span></button>
                   <button class="plany-btn plany-btn--weekend" id="btn-filter-weekend"><span class="plany-btn-icon">📅</span><span>WEEK-END</span></button>
-                  <button class="plany-btn plany-btn--clear"   id="btn-filter-clear">  <span class="plany-btn-icon">🧹</span><span>EFFACER</span></button>
+                  <button class="plany-btn plany-btn--clear" id="btn-filter-clear"><span class="plany-btn-icon">🧹</span><span>EFFACER</span></button>
                 </div>
               </div>
               <div class="plany-nav">
                 <button class="plany-nav-arrow" id="btn-week-prev">‹</button>
                 <span class="plany-period" id="plany-period-label">—</span>
                 <button class="plany-nav-arrow" id="btn-week-next">›</button>
-                <button class="plany-nav-cal"   id="btn-week-today" title="Aujourd'hui">📆</button>
+                <button class="plany-nav-cal" id="btn-week-today" title="Aujourd'hui">📆</button>
               </div>
             </div>
             <div class="plany-grid-wrapper">
@@ -163,56 +113,54 @@
               <span class="legend-item"><span class="legend-dot legend-dot--empty"></span> Non renseigné</span>
             </div>
           </div>
-
-          <!-- Créneaux communs -->
           <div class="card" id="dispo-common-panel">
             <h3 class="card-title">🏆 Créneaux communs</h3>
-            <div id="dispo-common-slots">
-              <p class="empty-state">Renseignez vos disponibilités ci-dessus.</p>
-            </div>
+            <div id="dispo-common-slots"><p class="empty-state">Renseignez vos disponibilités ci-dessus.</p></div>
           </div>
-
-          <!-- Badge "cellules en cours d'envoi" -->
           <div id="dispo-pending-badge" class="dispo-pending-badge hidden"></div>
-
           <div class="step-actions">
             <button class="btn btn-ghost" id="btn-skip-dispo">Passer →</button>
             <button class="btn btn-primary" id="btn-dispo-next">Continuer →</button>
           </div>
         </section>
 
-        <!-- ── ÉTAPE 2 — CRÉNEAUX ── -->
+        <!-- ÉTAPE 2 — CRÉNEAUX -->
         <section class="step-panel" id="step-2">
           <div class="panel-header">
             <h2>Créneaux de terrain</h2>
             <p class="panel-sub">Collez une annonce pour extraire les créneaux automatiquement.</p>
           </div>
 
+          <!-- Smart Parser — collapsible -->
           <div class="card card-accent">
-            <div class="card-title-row">
-              <h3 class="card-title">✦ Smart Parser</h3>
-              <span class="badge badge-new">IA locale</span>
+            <div class="smart-parser-header" id="smart-parser-toggle">
+              <div class="card-title-row" style="margin-bottom:0;pointer-events:none">
+                <h3 class="card-title">✦ Smart Parser</h3>
+                <span class="badge badge-new">IA locale</span>
+              </div>
+              <span class="parser-chevron">›</span>
             </div>
-            <p class="card-desc">Copiez-collez le texte depuis un site de réservation.</p>
-            <textarea id="smart-parser-input" class="parser-textarea"
-              placeholder="Ex: Mardi 15 juillet — 20h00 à 21h00 — Terrain n°3 — 18€/h…" rows="5"></textarea>
-            <div class="parser-actions">
-              <button class="btn btn-accent" id="btn-parse">Extraire les créneaux</button>
-              <button class="btn btn-ghost btn-sm" id="btn-parse-clear">Effacer</button>
+            <div id="smart-parser-body" style="display:none">
+              <p class="card-desc" style="margin-top:.65rem">Copiez-collez le texte depuis un site de réservation.</p>
+              <textarea id="smart-parser-input" class="parser-textarea"
+                placeholder="Ex: Mardi 15 juillet — 20h00 à 21h00 — Terrain n°3 — 18€/h…" rows="5"></textarea>
+              <div class="parser-actions">
+                <button class="btn btn-accent" id="btn-parse">Extraire les créneaux</button>
+                <button class="btn btn-ghost btn-sm" id="btn-parse-clear">Effacer</button>
+              </div>
+              <div id="parser-result" class="parser-result hidden"></div>
             </div>
-            <div id="parser-result" class="parser-result hidden"></div>
           </div>
 
           <div class="card">
             <h3 class="card-title">Créneaux proposés</h3>
             <div id="slots-container"><p class="empty-state">Aucun créneau ajouté.</p></div>
-            <button class="btn btn-outline btn-sm" id="btn-add-slot-manual" style="margin-top:1rem">
-              + Ajouter manuellement
-            </button>
+            <button class="btn btn-outline btn-sm" id="btn-add-slot-manual" style="margin-top:1rem">+ Ajouter manuellement</button>
           </div>
 
+          <!-- Météo semaine complète -->
           <div class="card card-weather" id="weather-card">
-            <h3 class="card-title">🌤 Météo du créneau sélectionné</h3>
+            <h3 class="card-title">🌤 Météo de la semaine</h3>
             <div id="weather-content"><p class="empty-state">Sélectionnez un créneau pour voir la météo.</p></div>
           </div>
 
@@ -222,7 +170,7 @@
           </div>
         </section>
 
-        <!-- ── ÉTAPE 3 — SESSION ── -->
+        <!-- ÉTAPE 3 — SESSION -->
         <section class="step-panel" id="step-3">
           <div class="panel-header">
             <h2>Finalisation</h2>
@@ -231,16 +179,15 @@
 
           <!-- Mode lecture -->
           <div class="card" id="session-view-card">
-            <div class="card-title-row">
-              <h3 class="card-title">📋 Infos de la session</h3>
-            </div>
+            <div class="card-title-row"><h3 class="card-title">📋 Infos de la session</h3></div>
             <div id="session-view"></div>
           </div>
 
           <!-- Mode édition -->
           <div class="card hidden" id="session-form">
             <h3 class="card-title">✏️ Renseigner / Modifier</h3>
-
+            <!-- Champ caché pour l'id du club sélectionné -->
+            <input type="hidden" id="session-club-id-hidden" />
             <!-- Recherche club -->
             <div class="form-row" style="position:relative">
               <div class="form-group">
@@ -249,7 +196,6 @@
                 <div id="club-suggestions" class="club-suggestions hidden"></div>
               </div>
             </div>
-
             <div class="form-row two-col">
               <div class="form-group">
                 <label for="session-sport">Sport</label>
@@ -260,7 +206,6 @@
                 <input type="datetime-local" id="session-date" />
               </div>
             </div>
-
             <div class="form-row two-col">
               <div class="form-group">
                 <label for="session-venue">Lieu / Terrain</label>
@@ -271,14 +216,12 @@
                 <input type="number" id="session-price" placeholder="ex: 36" min="0" step="0.5" />
               </div>
             </div>
-
             <div class="form-row">
               <div class="form-group">
                 <label for="session-address">Adresse</label>
                 <input type="text" id="session-address" placeholder="12 rue des Sports, Bordeaux" />
               </div>
             </div>
-
             <div class="form-row two-col">
               <div class="form-group">
                 <label for="session-maps-url">Google Maps</label>
@@ -289,39 +232,28 @@
                 <input type="url" id="session-booking-url" placeholder="https://…" />
               </div>
             </div>
-
             <div class="form-row two-col">
               <div class="form-group">
                 <label for="session-notes">Notes</label>
                 <input type="text" id="session-notes" placeholder="Parking, code d'accès…" />
               </div>
               <div class="form-group">
-                <label for="session-max-players">
-                  Max joueurs <span style="color:var(--accent);font-size:.7rem">(avant liste d'attente)</span>
-                </label>
+                <label for="session-max-players">Max joueurs <span style="color:var(--accent);font-size:.7rem">(avant liste d'attente)</span></label>
                 <input type="number" id="session-max-players" value="10" min="1" max="50" />
               </div>
             </div>
-
             <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.5rem">
               <button class="btn btn-primary" id="btn-save-session">💾 Enregistrer</button>
-              <button class="btn btn-ghost"   id="btn-cancel-edit">Annuler</button>
+              <button class="btn btn-ghost" id="btn-cancel-edit">Annuler</button>
             </div>
           </div>
 
           <!-- Inscrits -->
           <div class="card">
-            <h3 class="card-title">
-              Inscrits
-              <span id="player-count" class="count-badge">0</span>
-              <span style="font-size:.7rem;color:var(--text-sub);font-weight:400"> / </span>
-              <span id="player-max" class="count-badge count-badge--grey">10</span>
-            </h3>
+            <h3 class="card-title">Inscrits <span id="player-count" class="count-badge">0</span><span style="font-size:.7rem;color:var(--text-sub);font-weight:400"> / </span><span id="player-max" class="count-badge count-badge--grey">10</span></h3>
             <div id="players-list"><p class="empty-state">Aucun inscrit.</p></div>
             <div class="form-row two-col" style="margin-top:1rem">
-              <div class="form-group">
-                <input type="text" id="new-player-name" placeholder="Prénom" />
-              </div>
+              <div class="form-group"><input type="text" id="new-player-name" placeholder="Prénom" /></div>
               <button class="btn btn-outline" id="btn-add-player">+ Inscrire</button>
             </div>
           </div>
@@ -341,39 +273,20 @@
             </div>
           </div>
 
-          <div class="step-actions">
-            <button class="btn btn-ghost" id="btn-final-back">← Retour</button>
-          </div>
+          <div class="step-actions"><button class="btn btn-ghost" id="btn-final-back">← Retour</button></div>
         </section>
-
       </div><!-- /#view-session -->
 
-      <!-- ────────────────────────────────────────
-           VUE 3 : CLUBS
-      ──────────────────────────────────────────── -->
+      <!-- ── CLUBS ── -->
       <div id="view-clubs" class="app-view hidden">
-        <div class="panel-header">
-          <h2>🏟 Clubs</h2>
-          <p class="panel-sub">Trouvez un terrain et organisez un match.</p>
-        </div>
-
-        <div class="clubs-search-bar">
-          <input type="search" id="clubs-search" placeholder="Rechercher un club, un sport…" />
-        </div>
-
-        <div id="clubs-list">
-          <p class="empty-state">Chargement des clubs…</p>
-        </div>
+        <div class="panel-header"><h2>🏟 Clubs</h2><p class="panel-sub">Trouvez un terrain et organisez un match.</p></div>
+        <div class="clubs-search-bar"><input type="search" id="clubs-search" placeholder="Rechercher un club, un sport…" /></div>
+        <div id="clubs-list"><p class="empty-state">Chargement des clubs…</p></div>
       </div>
 
-      <!-- ────────────────────────────────────────
-           VUE 4 : PROFIL / PARAMÈTRES
-      ──────────────────────────────────────────── -->
+      <!-- ── PROFIL ── -->
       <div id="view-profile" class="app-view hidden">
-        <div class="panel-header">
-          <h2>⚙️ Paramètres</h2>
-          <p class="panel-sub">Vos préférences et infos de compte.</p>
-        </div>
+        <div class="panel-header"><h2>⚙️ Paramètres</h2><p class="panel-sub">Vos préférences et infos de compte.</p></div>
         <div class="card">
           <h3 class="card-title">Profil</h3>
           <div class="form-group" style="margin-bottom:.75rem">
@@ -388,79 +301,63 @@
         </div>
         <div class="card">
           <h3 class="card-title">Synchronisation</h3>
-          <p style="font-size:.82rem;color:var(--text-sub);margin-bottom:.75rem">
-            Synchroniser manuellement les données avec Google Sheets.
-          </p>
-          <button class="btn btn-outline sync-btn" id="btn-force-sync"><img src="https://img.icons8.com/fluency-systems-regular/500/available-updates.png" class="icon8" alt="Icone synchronisation."> Synchroniser maintenant</button>
+          <p style="font-size:.82rem;color:var(--text-sub);margin-bottom:.75rem">Synchroniser manuellement les données avec Google Sheets.</p>
+          <button class="btn btn-outline sync-btn" id="btn-force-sync">
+            <img src="https://img.icons8.com/fluency-systems-regular/500/available-updates.png" class="icon8" alt="Sync"> Synchroniser maintenant
+          </button>
         </div>
         <div class="card">
           <h3 class="card-title">GAS URL</h3>
-          <p style="font-size:.75rem;color:var(--text-sub);margin-bottom:.5rem">
-            Configurée dans <code>app.js → CONFIG.GAS_URL</code>
-          </p>
+          <p style="font-size:.75rem;color:var(--text-sub);margin-bottom:.5rem">Configurée dans <code>app.js → CONFIG.GAS_URL</code></p>
         </div>
       </div>
 
-    </main><!-- /.app-main -->
+    </main>
 
-    <!-- SYNC STATUS FOOTER -->
     <footer class="app-footer" style="display:none" id="app-footer-sync">
       <span id="sync-status" class="sync-status">⏳ Vérification…</span>
       <button class="btn btn-ghost btn-xs sync-btn" id="btn-force-sync-footer">Sync</button>
     </footer>
+  </div>
 
-  </div><!-- /#app -->
-
-  <!-- FOOTER SYNC (universel) -->
+  <!-- FOOTER SYNC universel -->
   <div id="sync-footer" class="sync-footer">
     <div class="sync-footer-left">
       <span class="sync-footer-status" id="sync-footer-dot"></span>
-      <span class="sync-footer-label">
-        Dernière sync : <strong class="sync-footer-time">—</strong>
-      </span>
+      <span class="sync-footer-label">Dernière sync : <strong class="sync-footer-time">—</strong></span>
     </div>
-    <button class="sync-footer-btn sync-btn" title="Actualiser les données">
-      <img src="https://img.icons8.com/fluency-systems-regular/500/available-updates.png" class="icon8" alt="Icone synchronisation."> Actualiser
+    <button class="sync-footer-btn sync-btn" title="Actualiser">
+      <img src="https://img.icons8.com/fluency-systems-regular/500/available-updates.png" class="icon8" alt="Sync"> Actualiser
     </button>
   </div>
 
-  <!-- ══════════════════════════════════════════
-       BOTTOM NAVIGATION
-  ══════════════════════════════════════════ -->
+  <!-- BOTTOM NAV -->
   <nav class="bottom-nav">
-    <button class="bnav-btn active" data-view="dashboard">
-      <span class="bnav-icon">🏠</span>Accueil
-    </button>
-    <button class="bnav-btn" data-view="session">
-      <span class="bnav-icon">📋</span>Session
-    </button>
-    <button class="bnav-btn" data-view="clubs">
-      <span class="bnav-icon">🏟</span>Clubs
-    </button>
-    <button class="bnav-btn" data-view="profile">
-      <span class="bnav-icon">⚙️</span>Profil
-    </button>
+    <button class="bnav-btn active" data-view="dashboard"><span class="bnav-icon">🏠</span>Accueil</button>
+    <button class="bnav-btn" data-view="session"><span class="bnav-icon">📋</span>Session</button>
+    <button class="bnav-btn" data-view="clubs"><span class="bnav-icon">🏟</span>Clubs</button>
+    <button class="bnav-btn" data-view="profile"><span class="bnav-icon">⚙️</span>Profil</button>
   </nav>
 
-  <!-- FAB -->
-  <button class="fab-btn" id="fab-new-match" title="Créer un match"><img src="https://img.icons8.com/forma-bold/1000/plus-math.png" class="icon8" alt="Icone nouvelle session"></button>
+  <!-- FAB Nouveau match -->
+  <button class="fab-btn" id="fab-new-match" title="Créer un match">
+    <img src="https://img.icons8.com/forma-bold/1000/plus-math.png" class="icon8" alt="Nouvelle session">
+  </button>
 
-  <!-- ══════════════════════════════════════════
-       OVERLAYS
-  ══════════════════════════════════════════ -->
+  <!-- Bouton Partager (visible seulement en vue session) -->
+  <button class="fab-share-btn hidden" id="fab-share-btn" title="Partager la session">🔗</button>
 
-  <!-- Grille dispo — bulk -->
+  <!-- OVERLAYS -->
   <div class="plany-bulk-overlay hidden" id="plany-bulk-overlay" role="dialog" aria-modal="true">
     <div class="plany-bulk-sheet">
       <p class="plany-bulk-title" id="plany-bulk-title">Que faire ?</p>
-      <button class="plany-bulk-btn plany-bulk-btn--ok"     data-bulk="ok">✅ Disponible pour tous ces jours</button>
-      <button class="plany-bulk-btn plany-bulk-btn--no"     data-bulk="no">❌ Indisponible pour tous ces jours</button>
-      <button class="plany-bulk-btn plany-bulk-btn--clear"  data-bulk="clear">🗑️ Effacer ces jours</button>
+      <button class="plany-bulk-btn plany-bulk-btn--ok" data-bulk="ok">✅ Disponible pour tous ces jours</button>
+      <button class="plany-bulk-btn plany-bulk-btn--no" data-bulk="no">❌ Indisponible pour tous ces jours</button>
+      <button class="plany-bulk-btn plany-bulk-btn--clear" data-bulk="clear">🗑️ Effacer ces jours</button>
       <button class="plany-bulk-btn plany-bulk-btn--cancel" id="btn-bulk-cancel">Annuler</button>
     </div>
   </div>
 
-  <!-- Grille dispo — cellule (mobile) -->
   <div class="plany-cell-overlay hidden" id="plany-cell-overlay" role="dialog" aria-modal="true">
     <div class="plany-cell-sheet">
       <p class="plany-cell-title" id="plany-cell-title">—</p>
@@ -469,7 +366,6 @@
     </div>
   </div>
 
-  <!-- Modal créneau manuel -->
   <div class="modal-overlay hidden" id="modal-slot">
     <div class="modal">
       <h3>Ajouter un créneau</h3>
@@ -489,57 +385,39 @@
     </div>
   </div>
 
-  <!-- Fiche détail club -->
   <div class="hidden" id="club-detail-overlay">
-    <div class="club-detail-sheet">
-      <div id="club-detail-content"></div>
-    </div>
+    <div class="club-detail-sheet"><div id="club-detail-content"></div></div>
   </div>
 
-  <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
-  <!-- Scripts (ordre important) -->
   <script src="dispo.js"></script>
   <script src="home.js"></script>
   <script src="clubs.js"></script>
   <script src="app.js"></script>
 
-  <!-- Profil inline (sync prénom ↔ dispo-username) -->
   <script>
-    $(document).ready(function(){
-      // Sync prénom depuis localStorage
-      const savedName  = localStorage.getItem('sportsync_username')||'';
-      const savedEmail = localStorage.getItem('sportsync_email')||'';
-      $('#profile-name').val(savedName);
-      $('#profile-email').val(savedEmail);
-      if(savedEmail) $('#home-email-display').text('📧 '+savedEmail);
+  $(document).ready(function(){
+    const savedName  = localStorage.getItem('sportsync_username')||'';
+    const savedEmail = localStorage.getItem('sportsync_email')||'';
+    $('#profile-name').val(savedName);
+    $('#profile-email').val(savedEmail);
+    if(savedEmail) $('#home-email-display').text('📧 '+savedEmail);
 
-      $('#btn-save-profile').on('click',function(){
-        const name  = $('#profile-name').val().trim();
-        const email = $('#profile-email').val().trim().toLowerCase();
-        if(name)  localStorage.setItem('sportsync_username',name);
-        if(email) localStorage.setItem('sportsync_email',email);
-        if(window.SportSyncDispo && name) {
-          window.SportSyncDispo.init && window.SportSyncDispo.refresh && window.SportSyncDispo.refresh();
-        }
-        showToast && showToast('Profil enregistré ✓','success');
-      });
-
-      // Afficher la vue session quand on clique sur le step-nav
-      $('#steps-nav').on('click','.step-btn',function(){
-        $('#view-session').removeClass('hidden');
-        $('.app-view').not('#view-session').addClass('hidden');
-      });
-
-      // Afficher/masquer le step-nav selon la vue
-      $(document).on('click','.bnav-btn',function(){
-        const v=$(this).data('view');
-        $('#steps-nav').toggleClass('hidden', v!=='session');
-      });
-      // Masquer step-nav par défaut (on est sur dashboard)
-      $('#steps-nav').addClass('hidden');
+    // Bouton Nouvelle session dans le dashboard (class .btn-new-session)
+    $(document).on('click','.btn-new-session',function(){
+      if(typeof newSession==='function')newSession();
+      else{if(typeof showView==='function')showView('session');if(typeof goToStep==='function')goToStep(1);}
     });
+
+    $('#steps-nav').on('click','.step-btn',function(){
+      $('#view-session').removeClass('hidden');$('.app-view').not('#view-session').addClass('hidden');
+    });
+    $(document).on('click','.bnav-btn',function(){
+      const v=$(this).data('view');$('#steps-nav').toggleClass('hidden',v!=='session');
+    });
+    $('#steps-nav').addClass('hidden');
+  });
   </script>
 </body>
 </html>

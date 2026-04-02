@@ -1141,3 +1141,133 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   background: var(--accent2);
   animation: pulse 1s ease infinite;
 }
+/* ════════════════════════════════════════════════════
+   SMART PARSER — collapsible
+════════════════════════════════════════════════════ */
+.smart-parser-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  padding: .1rem 0;
+}
+.parser-chevron {
+  font-size: 1.1rem;
+  color: var(--text-sub);
+  transform: rotate(0deg);
+  transition: transform .2s;
+  line-height: 1;
+}
+.smart-parser-header.open .parser-chevron { transform: rotate(90deg); }
+
+/* ════════════════════════════════════════════════════
+   MÉTÉO SEMAINE
+════════════════════════════════════════════════════ */
+.weather-week { display: flex; flex-direction: column; gap: 0; }
+
+.weather-day-row {
+  display: flex; align-items: center; gap: .65rem;
+  padding: .55rem .6rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background .12s;
+}
+.weather-day-row:hover { background: var(--bg-card-alt); }
+.weather-day-row--active { background: var(--accent-dim) !important; border-radius: var(--radius-sm); }
+
+.wd-label  { flex: 1.4; font-size: .78rem; color: var(--text-sub); }
+.wd-icon   { font-size: 1.1rem; min-width: 1.5rem; text-align: center; }
+.wd-temp   { display: flex; gap: .35rem; min-width: 4rem; font-size: .78rem; }
+.wd-max    { color: var(--accent2); font-weight: 700; }
+.wd-min    { color: var(--text-sub); }
+.wd-rain   { font-size: .72rem; color: var(--accent3); min-width: 2.5rem; text-align: right; }
+.wd-expand-btn {
+  background: none; border: none; color: var(--text-sub); cursor: pointer;
+  font-size: .9rem; padding: .1rem .25rem; border-radius: 4px; line-height: 1;
+}
+.wd-expand-btn:hover { color: var(--text); background: var(--border); }
+
+.weather-hourly-panel {
+  background: var(--bg-card-alt);
+  border-radius: var(--radius-sm);
+  margin: 0 .6rem .4rem;
+  overflow: hidden;
+}
+.hourly-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 0;
+  padding: .4rem;
+}
+.hourly-row {
+  display: flex; flex-direction: column; align-items: center;
+  padding: .35rem .2rem;
+  font-size: .68rem;
+  gap: .1rem;
+  border-radius: 6px;
+  transition: background .1s;
+}
+.hourly-row:hover { background: var(--border); }
+.hr-time  { color: var(--muted); font-weight: 600; }
+.hr-icon  { font-size: 1rem; }
+.hr-temp  { color: var(--text); font-weight: 700; }
+.hr-rain  { color: var(--accent3); }
+
+/* ════════════════════════════════════════════════════
+   BOUTON PARTAGER (FAB secondaire)
+════════════════════════════════════════════════════ */
+.fab-share-btn {
+  position: fixed;
+  bottom: 160px;       /* au-dessus du FAB + sync-footer */
+  right: 1rem;
+  z-index: 96;
+  width: 40px; height: 40px;
+  background: var(--bg-card);
+  color: var(--text);
+  border: 1px solid var(--border-light);
+  border-radius: 50%;
+  font-size: .95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,.3);
+  transition: transform .15s, box-shadow .15s, background .15s;
+}
+.fab-share-btn:hover { background: var(--bg-card-alt); transform: scale(1.08); }
+.fab-share-btn:active { transform: scale(.93); }
+
+/* ════════════════════════════════════════════════════
+   CLUBS — horaires JSON
+════════════════════════════════════════════════════ */
+.hours-grid { display: flex; flex-direction: column; gap: .2rem; }
+.hours-row  { display: flex; gap: .75rem; font-size: .8rem; color: var(--text-sub); }
+.hours-day  { min-width: 2.5rem; color: var(--muted); font-weight: 600; font-size: .72rem; text-transform: uppercase; }
+.hours-val  { color: var(--text); }
+
+/* ════════════════════════════════════════════════════
+   HOME — avancement session (dans les cartes matchs)
+════════════════════════════════════════════════════ */
+.session-progress {
+  font-size: .7rem;
+  color: var(--text-sub);
+  margin-top: .2rem;
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  flex-wrap: wrap;
+}
+.session-step-badge {
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: .1rem .45rem;
+  font-size: .65rem;
+  font-weight: 600;
+}
+.session-step-badge--active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
