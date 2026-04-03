@@ -87,7 +87,8 @@ function doPost(e) {
       case 'saveSession':       result=saveSession(body,sessionId);            break;
       case 'createSession':     result=createSession(body);                    break;
       case 'linkUserToSession': result=linkUserToSession(body.email,body.sessionId); break;
-      case 'deduplicateDispos': result=deduplicateDispos();                    break;
+      case 'deduplicateDispos':        result=deduplicateDispos();               break;
+      case 'createRecurringSession': result=createRecurringSession(body);      break;
       default: result={error:'Action inconnue : '+action};
     }
     return jsonResponse(result);
@@ -547,3 +548,66 @@ function formatDateTimeValue(val){
 }
 function generateId(){return String(Date.now())+String(Math.floor(Math.random()*9000+1000));}
 function jsonResponse(data){return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);}
+
+// ─────────────────────────────────────────────────────────────
+// SESSIONS RÉCURRENTES
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Crée une session récurrente dans l'onglet Sessions avec
+ * les champs de récurrence : recurrenceDay, recurrenceSlot, recurrenceWeeks.
+ *
+ * body = {
+ *   sessionId,   // ID maître de la récurrence (ex: "recurring_padel_lundi")
+ *   sport,
+ *   venue,
+ *   address,
+ *   recurrenceDay,    // 1=Lun, 2=Mar, ..., 7=Dim
+ *   recurrenceSlot,   // 'morning'|'afternoon'|'evening'
+ *   recurrenceWeeks,  // nombre de semaines à générer (ex: 8)
+ *   maxPlayers,
+ *   ownerEmail,
+ * }
+ *
+ * Génère N occurrences dans l'onglet Sessions, chacune avec
+ * son propre sessionId = parentId + "_" + dateISO.
+ */
+function createRecurringSession(body) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.SESSIONS);
+  var parentId = body.sessionId || ('recurring_' + generateId());
+  var nbWeeks  = Number(body.recurrenceWeeks) || 4;
+  var dow      = Number(body.recurrenceDay)   || 1; // 1=Lun (ISO)
+
+  // Trouver la prochaine occurrence du jour demandé
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  var diff = (dow - today.getDay() + 7) % 7 || 7; // au moins 1 semaine
+  var startDate = new Date(today);
+  startDate.setDate(today.getDate() + diff);
+
+  var created = [];
+  for (var w = 0; w < nbWeeks; w++) {
+    var occDate = new Date(startDate);
+    occDate.setDate(startDate.getDate() + w * 7);
+    var occDateStr = formatDateValue(occDate);
+    var occId      = parentId + '_' + occDateStr;
+    var now        = new Date().toISOString();
+
+    sheet.appendRow([
+      generateId(), occId,
+      body.sport    || '',
+      'open',
+      body.venue    || '',
+      occDateStr,
+      Number(body.maxPlayers) || 10,
+      now,
+      body.ownerEmail || '',
+    ]);
+
+    if (body.ownerEmail) linkUserToSession(body.ownerEmail, occId);
+    created.push(occId);
+  }
+
+  bumpTimestamp();
+  return { ok: true, parentId: parentId, sessions: created, timestamp: getTimestamp() };
+}

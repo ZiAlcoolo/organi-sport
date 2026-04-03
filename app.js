@@ -18,7 +18,7 @@
 // 1. CONFIGURATION
 // ══════════════════════════════════════════════════
 const CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycby0Q06_xU29yLtc2nWYpusw6Ca6YeZZKNUiZoYXCEhCCrJqIs-xSyDFjrwYVm28jTFt/exec',
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbydj1m9XpKH9j4LWPj586BWQ5_H4SNC8f4wm5XMOJtwM4EV4S6sfquOXF4u3-Dj4TDG/exec',
   METEO:   { DEFAULT_LAT:44.8378, DEFAULT_LON:-0.5792 },
   IDB:     { NAME:'sportsync', VERSION:5,
              STORES:['session','dispos','slots','players','clubs','sessions_index'] },
@@ -84,7 +84,8 @@ function gasFetchAll(){
 function gasWrite(action,pl){ return gasRequest('POST',Object.assign({action,sessionId:state.sessionId||'recurring'},pl||{})); }
 function gasGetAllClubs()    { return gasRequest('GET',null,{action:'getAllClubs'}); }
 function gasSearchClubs(q)   { return gasRequest('GET',null,{action:'searchClubs',q}); }
-function gasGetMyMatches(em) { return gasRequest('GET',null,{action:'getMyMatches',email:em}); }
+function gasGetMyMatches(em)   { return gasRequest('GET',null,{action:'getMyMatches',email:em}); }
+function gasCreateRecurring(b) { return gasRequest('POST',Object.assign({action:'createRecurringSession'},b)); }
 
 // ══════════════════════════════════════════════════
 // 5. SYNCHRONISATION
@@ -649,6 +650,43 @@ async function saveSession(){
     .catch(()=>{});
 }
 
+// ─── Sessions récurrentes ──────────────────────────────────────
+/**
+ * Crée une série de sessions récurrentes (N semaines consécutives).
+ * @param {object} opts - { sport, venue, address, day (1=Lun..7=Dim), slot, weeks, maxPlayers }
+ */
+async function createRecurringSession(opts){
+  if(state.isOffline)return showToast('Mode consultation','error');
+  const email=localStorage.getItem('sportsync_email')||'';
+  if(!email){showToast('Renseignez votre email dans Profil avant de créer une récurrence','error');showView('profile');return;}
+  const parentId='rec_'+generateUUID().slice(0,8);
+  showToast('Création en cours…');
+  try{
+    const r=await gasCreateRecurring({
+      sessionId:        parentId,
+      sport:            opts.sport||'',
+      venue:            opts.venue||'',
+      address:          opts.address||'',
+      recurrenceDay:    Number(opts.day)||1,
+      recurrenceSlot:   opts.slot||'evening',
+      recurrenceWeeks:  Number(opts.weeks)||4,
+      maxPlayers:       Number(opts.maxPlayers)||10,
+      ownerEmail:       email,
+    });
+    if(r&&r.ok){
+      showToast(`${r.sessions.length} séances créées ✓`,'success');
+      $('#modal-recurring').addClass('hidden');
+      await syncFromSheets();
+      if(window.SportSyncHome)window.SportSyncHome.loadMyMatches();
+    }else{
+      showToast((r&&r.error)||'Erreur lors de la création','error');
+    }
+  }catch(e){
+    console.error('[recurring]',e);
+    showToast('Erreur réseau','error');
+  }
+}
+
 // Partager la session
 function shareSession(){
   const url=window.location.href;
@@ -779,6 +817,36 @@ function bindEvents(){
   });
   $(document).on('click','#home-email-change',function(){$('#home-email-section').removeClass('collapsed');});
 
+  // Modale sessions récurrentes
+  $(document).on('click','#btn-new-recurring',function(){
+    _updateRecurringPreview(); // mettre à jour la preview dès l'ouverture
+    $('#modal-recurring').removeClass('hidden');
+  });
+  $(document).on('click','#btn-recurring-cancel',function(){
+    $('#modal-recurring').addClass('hidden');
+  });
+  $(document).on('click','#modal-recurring',function(e){
+    if(e.target===this)$(this).addClass('hidden');
+  });
+  // Mise à jour live de la preview quand les champs changent
+  $(document).on('change input','#rec-day,#rec-slot,#rec-weeks',function(){
+    _updateRecurringPreview();
+  });
+  $(document).on('click','#btn-recurring-confirm',async function(){
+    const btn=$(this);
+    btn.prop('disabled',true).text('Création…');
+    await createRecurringSession({
+      sport:      $('#rec-sport').val().trim(),
+      venue:      $('#rec-venue').val().trim(),
+      address:    $('#rec-address').val().trim(),
+      day:        $('#rec-day').val(),
+      slot:       $('#rec-slot').val(),
+      weeks:      $('#rec-weeks').val(),
+      maxPlayers: $('#rec-max-players').val(),
+    });
+    btn.prop('disabled',false).text('✅ Créer la série');
+  });
+
   // Réseau
   $(window).on('online', ()=>{setOfflineMode(false);syncFromSheets();});
   $(window).on('offline',()=>setOfflineMode(true));
@@ -815,9 +883,49 @@ async function boot(){
 }
 
 $(document).ready(boot);
-window.voteSlot         = voteSlot;
-window.removePlayer     = removePlayer;
-window.showView         = showView;
-window.goToStep         = goToStep;
-window.newSession       = newSession;
-window.updateSyncFooter = updateSyncFooter;
+window.voteSlot               = voteSlot;
+window.removePlayer           = removePlayer;
+window.showView               = showView;
+window.goToStep               = goToStep;
+window.newSession             = newSession;
+window.updateSyncFooter       = updateSyncFooter;
+window.createRecurringSession = createRecurringSession;
+
+// ── Preview dynamique des occurrences récurrentes ──────────────
+/**
+ * Calcule et affiche les dates qui seront générées pour la série.
+ * Appel : dès que l'utilisateur modifie le formulaire récurrent.
+ */
+function _updateRecurringPreview(){
+  const $preview = $('#recurring-preview');
+  if(!$preview.length) return;
+
+  const dow   = Number($('#rec-day').val())   || 6;  // 1=Lun..7=Dim (ISO)
+  const weeks = Number($('#rec-weeks').val()) || 8;
+  const slot  = $('#rec-slot').val() || 'evening';
+
+  const slotLabel = {morning:'Matin',afternoon:'Après-midi',evening:'Soir'}[slot]||slot;
+
+  // Trouver la prochaine occurrence du jour demandé
+  // getDay() : 0=dim,1=lun,...,6=sam — ISO : 1=lun...7=dim
+  // Conversion ISO→getDay : getDay = dow % 7
+  const targetGetDay = dow % 7; // ex: 6 (sam ISO) → getDay=6; 7 (dim ISO) → getDay=0
+  const today = new Date(); today.setHours(0,0,0,0);
+  let diff = (targetGetDay - today.getDay() + 7) % 7 || 7;
+  const firstDate = new Date(today);
+  firstDate.setDate(today.getDate() + diff);
+
+  let html = `<div class="recurring-preview-title">📅 ${weeks} séance${weeks>1?'s':''} prévues</div>`;
+  for(let w=0; w<Math.min(weeks,20); w++){
+    const d = new Date(firstDate);
+    d.setDate(firstDate.getDate() + w*7);
+    const label = d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+    html += `<div class="recurring-occ">
+      <span class="recurring-occ-num">#${w+1}</span>
+      <span class="recurring-occ-date">${label}</span>
+      <span class="recurring-occ-slot">${slotLabel}</span>
+    </div>`;
+  }
+  if(weeks>20) html += `<div class="recurring-occ" style="font-style:italic;color:var(--muted)">+ ${weeks-20} séances supplémentaires…</div>`;
+  $preview.html(html);
+}

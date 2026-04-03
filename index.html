@@ -68,6 +68,7 @@
           <h3 class="card-title">Accès rapide</h3>
           <div style="display:flex;gap:.6rem;flex-wrap:wrap">
             <button class="btn btn-outline btn-new-session">➕ Nouvelle session</button>
+            <button class="btn btn-outline" id="btn-new-recurring">🔁 Session récurrente</button>
             <button class="btn btn-outline" onclick="showView('clubs')">🏟 Annuaire clubs</button>
           </div>
         </div>
@@ -381,6 +382,77 @@
       <div class="modal-actions">
         <button class="btn btn-ghost" id="btn-modal-cancel">Annuler</button>
         <button class="btn btn-primary" id="btn-modal-confirm">Ajouter</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale Sessions Récurrentes -->
+  <div class="modal-overlay hidden" id="modal-recurring">
+    <div class="modal modal--wide">
+      <div class="modal-header">
+        <h3>🔁 Créer une série de sessions récurrentes</h3>
+        <p class="modal-sub">Génère automatiquement N séances hebdomadaires dans votre agenda.</p>
+      </div>
+
+      <div class="form-row two-col">
+        <div class="form-group">
+          <label for="rec-sport">Sport</label>
+          <input type="text" id="rec-sport" placeholder="ex: Padel" />
+        </div>
+        <div class="form-group">
+          <label for="rec-day">Jour de la semaine</label>
+          <select id="rec-day">
+            <option value="1">Lundi</option>
+            <option value="2">Mardi</option>
+            <option value="3">Mercredi</option>
+            <option value="4">Jeudi</option>
+            <option value="5">Vendredi</option>
+            <option value="6" selected>Samedi</option>
+            <option value="7">Dimanche</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row two-col">
+        <div class="form-group">
+          <label for="rec-slot">Créneau horaire</label>
+          <select id="rec-slot">
+            <option value="morning">Matin (6H–12H)</option>
+            <option value="afternoon">Après-midi (12H–18H)</option>
+            <option value="evening" selected>Soir (18H–23H)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="rec-weeks">Nombre de semaines</label>
+          <input type="number" id="rec-weeks" value="8" min="1" max="52" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="rec-venue">Lieu habituel</label>
+          <input type="text" id="rec-venue" placeholder="ex: City Padel Bordeaux" />
+        </div>
+      </div>
+
+      <div class="form-row two-col">
+        <div class="form-group">
+          <label for="rec-address">Adresse (optionnel)</label>
+          <input type="text" id="rec-address" placeholder="12 rue des Sports…" />
+        </div>
+        <div class="form-group">
+          <label for="rec-max-players">Max joueurs</label>
+          <input type="number" id="rec-max-players" value="4" min="1" max="50" />
+        </div>
+      </div>
+
+      <div class="recurring-preview" id="recurring-preview">
+        <!-- Rempli dynamiquement -->
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btn-recurring-cancel">Annuler</button>
+        <button class="btn btn-primary" id="btn-recurring-confirm">✅ Créer la série</button>
       </div>
     </div>
   </div>

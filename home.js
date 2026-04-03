@@ -101,7 +101,7 @@
       return `<div class="match-card ${isPast?'match-card--past':''}" data-sid="${s.sessionId}">
         <div class="match-card-sport">${emoji}</div>
         <div class="match-card-body">
-          <div class="match-card-title">${s.sport||'Session sport'}</div>
+          <div class="match-card-title">${s.sport||'Session sport'}${s.sessionId&&s.sessionId.startsWith('rec_')?'&nbsp;<span class="recurrence-badge">🔁 Récurrent</span>':''}</div>
           <div class="match-card-venue">📍 ${s.venue||'Lieu non précisé'}</div>
           <div class="match-card-date">🗓 ${dateStr}</div>
           <div class="session-progress">

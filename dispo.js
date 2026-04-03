@@ -744,10 +744,19 @@
     $(document).on('click', '#btn-filter-week', () => openBulkSheet('week'));
     $(document).on('click', '#btn-filter-weekend', () => openBulkSheet('weekend'));
     $(document).on('click', '#btn-filter-clear', () => openBulkSheet('all'));
-    $(document).on('click', '[data-bulk]', async function () {
-      const action = $(this).data('bulk'), target = DS.bulkTarget;
-      closeBulkSheet();
-      if (action && action !== 'cancel') await applyBulk(target, action);
+    // FIX bug weekend : capturer target AVANT closeBulkSheet qui remet DS.bulkTarget=null
+    // De plus, utiliser des boutons dédiés au lieu de [data-bulk] pour éviter les conflits
+    $(document).on('click', '.plany-bulk-btn--ok', async function () {
+      const target = DS.bulkTarget; closeBulkSheet();
+      if (target) await applyBulk(target, 'ok');
+    });
+    $(document).on('click', '.plany-bulk-btn--no', async function () {
+      const target = DS.bulkTarget; closeBulkSheet();
+      if (target) await applyBulk(target, 'no');
+    });
+    $(document).on('click', '.plany-bulk-btn--clear', async function () {
+      const target = DS.bulkTarget; closeBulkSheet();
+      if (target) await applyBulk(target, 'clear');
     });
     $(document).on('click', '#btn-bulk-cancel', closeBulkSheet);
     $(document).on('click', '#plany-bulk-overlay', function (e) { if (e.target === this) closeBulkSheet(); });
