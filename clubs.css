@@ -1,27 +1,24 @@
 /* ════════════════════════════════════════════════════
-   SPORTSYNC — clubs.css
+   SPORTSYNC — clubs.css  v3
    Annuaire des clubs + fiche détail
 ════════════════════════════════════════════════════ */
 
-/* ── Barre de recherche clubs ─────────────────────── */
+/* ── Barre de recherche ─────────────────────────── */
 .clubs-search-bar {
   display: flex;
   gap: .5rem;
-  margin-bottom: .85rem;
+  margin-bottom: .75rem;
 }
+#clubs-search { flex: 1; }
 
-#clubs-search {
-  flex: 1;
-}
-
-/* ── Tabs sport ───────────────────────────────────── */
+/* ── Tabs sport (multi-sport) ───────────────────── */
 .sport-tabs {
   display: flex;
   gap: .4rem;
   overflow-x: auto;
   scrollbar-width: none;
   padding-bottom: .5rem;
-  margin-bottom: .85rem;
+  margin-bottom: .75rem;
 }
 .sport-tabs::-webkit-scrollbar { display: none; }
 
@@ -38,28 +35,93 @@
   transition: all .15s;
   flex-shrink: 0;
 }
-.sport-tab.active {
-  background: var(--accent-dim);
-  border-color: var(--accent);
-  color: var(--accent);
-}
+.sport-tab.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 .sport-tab:hover:not(.active) { border-color: var(--border-light); color: var(--text); }
 
-/* ── Grille clubs ─────────────────────────────────── */
+/* ── Barre distance ─────────────────────────────── */
+.clubs-distance-bar {
+  margin-bottom: .75rem;
+}
+
+.clubs-distance-input-wrap {
+  display: flex;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .45rem .75rem;
+  gap: .5rem;
+  transition: border-color .15s;
+}
+.clubs-distance-input-wrap:focus-within { border-color: var(--accent-dim); }
+
+.clubs-distance-icon { font-size: .9rem; flex-shrink: 0; }
+
+.clubs-distance-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: .82rem;
+  padding: 0;
+}
+.clubs-distance-input::placeholder { color: var(--muted); }
+
+.clubs-distance-clear {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: .8rem;
+  padding: 0 .2rem;
+  line-height: 1;
+}
+.clubs-distance-clear.hidden { display: none; }
+.clubs-distance-clear:hover { color: var(--text); }
+
+.clubs-distance-status {
+  display: block;
+  font-size: .7rem;
+  color: var(--text-sub);
+  margin-top: .25rem;
+  padding-left: .25rem;
+  min-height: 1rem;
+}
+.clubs-distance-status.loading { color: var(--accent2); }
+.clubs-distance-status.error   { color: #f87171; }
+
+/* ── Tri ────────────────────────────────────────── */
+.clubs-sort-row {
+  display: flex;
+  gap: .4rem;
+  margin-bottom: .75rem;
+}
+.clubs-sort-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  border-radius: 100px;
+  padding: .28rem .8rem;
+  font-size: .72rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.clubs-sort-btn.active { background: var(--bg-card-alt); border-color: var(--border-light); color: var(--text); }
+.clubs-sort-btn:hover:not(.active) { border-color: var(--border-light); }
+
+/* ── Grille clubs ───────────────────────────────── */
 .clubs-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: .85rem;
 }
+@media (min-width: 560px) { .clubs-grid { grid-template-columns: repeat(2,1fr); } }
+@media (min-width: 900px) { .clubs-grid { grid-template-columns: repeat(3,1fr); } }
 
-@media (min-width: 560px) {
-  .clubs-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (min-width: 900px) {
-  .clubs-grid { grid-template-columns: repeat(3, 1fr); }
-}
-
-/* ── Club card ────────────────────────────────────── */
+/* ── Club card ──────────────────────────────────── */
 .club-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -68,12 +130,7 @@
   cursor: pointer;
   transition: border-color .15s, transform .12s, box-shadow .15s;
 }
-
-.club-card:hover {
-  border-color: var(--border-light);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,.25);
-}
+.club-card:hover { border-color: var(--border-light); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.25); }
 
 .club-card-photo {
   width: 100%;
@@ -84,21 +141,41 @@
   position: relative;
 }
 
-.club-card-sport-badge {
+/* Pills multi-sports sur la photo */
+.club-card-sports-row {
   position: absolute;
-  bottom: .6rem;
-  left: .6rem;
-  font-size: .7rem;
+  bottom: .55rem;
+  left: .55rem;
+  display: flex;
+  gap: .3rem;
+  flex-wrap: wrap;
+  max-width: calc(100% - 1.1rem);
+}
+.club-sport-pill {
+  font-size: .65rem;
   font-weight: 700;
-  padding: .25rem .65rem;
+  padding: .2rem .55rem;
   border-radius: 100px;
   border: 1px solid;
   backdrop-filter: blur(6px);
+  white-space: nowrap;
 }
 
-.club-card-body {
-  padding: .85rem;
+/* Badge distance sur la photo */
+.club-card-dist-badge {
+  position: absolute;
+  top: .55rem;
+  right: .55rem;
+  font-size: .65rem;
+  font-weight: 700;
+  background: rgba(0,0,0,.6);
+  color: #fff;
+  padding: .2rem .5rem;
+  border-radius: 100px;
+  backdrop-filter: blur(4px);
 }
+
+.club-card-body { padding: .85rem; }
 
 .club-card-name {
   font-family: var(--font-display);
@@ -107,7 +184,6 @@
   color: var(--text);
   margin-bottom: .3rem;
 }
-
 .club-card-addr {
   font-size: .75rem;
   color: var(--text-sub);
@@ -116,13 +192,11 @@
   text-overflow: ellipsis;
   margin-bottom: .45rem;
 }
-
 .club-card-badges {
   display: flex;
   gap: .35rem;
   flex-wrap: wrap;
 }
-
 .club-badge {
   font-size: .68rem;
   font-weight: 600;
@@ -132,17 +206,15 @@
   padding: .15rem .5rem;
   border-radius: 100px;
 }
+.club-badge--dist { color: var(--accent3); border-color: rgba(56,189,248,.3); }
+.club-badge--install { color: var(--text); letter-spacing: .03em; }
 
-/* ── Empty state clubs ────────────────────────────── */
-.clubs-empty {
-  text-align: center;
-  padding: 2.5rem 1rem;
-  color: var(--text-sub);
-}
+/* ── Empty ──────────────────────────────────────── */
+.clubs-empty { text-align: center; padding: 2.5rem 1rem; color: var(--text-sub); }
 .clubs-empty-icon { font-size: 3rem; margin-bottom: .75rem; }
 .clubs-empty-sub  { font-size: .82rem; margin-top: .35rem; }
 
-/* ── Modale fiche détail ──────────────────────────── */
+/* ── Modale fiche détail ────────────────────────── */
 #club-detail-overlay {
   position: fixed;
   inset: 0;
@@ -160,14 +232,13 @@
   border-radius: 20px 20px 0 0;
   width: 100%;
   max-width: 600px;
-  max-height: 90dvh;
+  max-height: 92dvh;
   overflow-y: auto;
   animation: slideUp .3s cubic-bezier(0.22,1,0.36,1);
 }
-
 @media (min-width: 640px) {
   #club-detail-overlay { align-items: center; }
-  .club-detail-sheet   { border-radius: 20px; max-height: 85dvh; }
+  .club-detail-sheet { border-radius: 20px; max-height: 88dvh; }
 }
 
 .club-detail-photo {
@@ -182,80 +253,172 @@
 }
 
 .club-detail-close {
-  position: absolute;
-  top: .75rem;
-  right: .75rem;
-  background: rgba(0,0,0,.55);
-  border: none;
-  color: #fff;
-  border-radius: 50%;
-  width: 34px; height: 34px;
-  font-size: .9rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: absolute; top: .75rem; right: .75rem;
+  background: rgba(0,0,0,.55); border: none; color: #fff;
+  border-radius: 50%; width: 34px; height: 34px; font-size: .9rem;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
   backdrop-filter: blur(4px);
 }
 
-.club-detail-sport {
+/* Pills sports sur la fiche */
+.club-detail-sports {
   position: absolute;
   bottom: .75rem;
   left: .75rem;
-  font-size: .85rem;
+  display: flex;
+  gap: .35rem;
+  flex-wrap: wrap;
+  max-width: calc(100% - 1.5rem);
+}
+.detail-sport-pill {
+  font-size: .78rem;
   font-weight: 700;
-  background: rgba(0,0,0,.55);
-  backdrop-filter: blur(4px);
-  padding: .3rem .8rem;
+  padding: .28rem .75rem;
   border-radius: 100px;
+  border: 1px solid;
+  backdrop-filter: blur(4px);
+  background: rgba(0,0,0,.45);
 }
 
-.club-detail-body {
-  padding: 1.25rem;
+/* Badge distance dans la fiche */
+.club-detail-dist {
+  position: absolute;
+  top: .75rem;
+  left: .75rem;
+  font-size: .7rem;
+  font-weight: 700;
+  background: rgba(0,0,0,.55);
+  color: #fff;
+  padding: .2rem .6rem;
+  border-radius: 100px;
+  backdrop-filter: blur(4px);
 }
+
+.club-detail-body { padding: 1.25rem; }
 
 .club-detail-name {
   font-family: var(--font-display);
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: var(--text);
-  margin-bottom: .75rem;
-  line-height: 1.2;
+  font-size: 1.35rem; font-weight: 800; color: var(--text);
+  margin-bottom: .75rem; line-height: 1.2;
 }
 
 .club-detail-row {
-  display: flex;
-  align-items: flex-start;
-  gap: .6rem;
-  font-size: .85rem;
-  color: var(--text-sub);
-  margin-bottom: .5rem;
-  line-height: 1.5;
+  display: flex; align-items: flex-start; gap: .6rem;
+  font-size: .85rem; color: var(--text-sub);
+  margin-bottom: .5rem; line-height: 1.5;
 }
-
 .club-detail-row span { flex: 1; }
 
 .club-detail-notes {
-  background: var(--bg-card-alt);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: .75rem;
-  font-size: .82rem;
-  color: var(--text-sub);
-  margin: .75rem 0;
-  line-height: 1.6;
+  background: var(--bg-card-alt); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: .75rem;
+  font-size: .82rem; color: var(--text-sub);
+  margin: .75rem 0; line-height: 1.6;
 }
 
 .club-detail-actions {
-  display: flex;
-  gap: .6rem;
-  flex-wrap: wrap;
-  margin-top: 1rem;
-  padding-top: .85rem;
+  display: flex; gap: .6rem; flex-wrap: wrap;
+  margin-top: 1rem; padding-top: .85rem;
   border-top: 1px solid var(--border);
 }
 
-/* ── Tag sport dans suggestion autocomplétion ─────── */
+/* ── Installations (style Ten'up) ───────────────── */
+.installations-block {
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .85rem;
+  margin: .75rem 0;
+}
+.installations-title {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--muted);
+  margin-bottom: .65rem;
+}
+.install-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  gap: .1rem .65rem;
+  padding: .55rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.install-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+.install-sport {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: .85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.install-surface {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: .78rem;
+  color: var(--text-sub);
+  align-self: center;
+}
+.install-count {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  font-size: .78rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Notes locales ──────────────────────────────── */
+.local-notes-section {
+  margin: .85rem 0;
+}
+.local-notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .4rem;
+  gap: .5rem;
+}
+.local-notes-title {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.local-notes-hint {
+  font-size: .65rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.local-notes-textarea {
+  width: 100%;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: .82rem;
+  line-height: 1.5;
+  padding: .65rem .75rem;
+  resize: vertical;
+  min-height: 72px;
+  transition: border-color .15s;
+  box-sizing: border-box;
+}
+.local-notes-textarea:focus { border-color: var(--accent-dim); outline: none; }
+.local-notes-textarea::placeholder { color: var(--muted); font-style: italic; }
+
+/* Badge "Sauvegardé" qui apparaît puis disparaît */
+.note-saved-badge {
+  font-size: .65rem;
+  font-weight: 700;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity .25s;
+}
+.note-saved-badge.visible { opacity: 1; }
+
+/* ── Tag sport dans suggestion autocomplétion ───── */
 .club-sport-tag {
   display: inline-block;
   font-size: .65rem;
@@ -266,3 +429,9 @@
   margin-left: .3rem;
   vertical-align: middle;
 }
+
+/* ── Horaires ───────────────────────────────────── */
+.hours-grid { display: flex; flex-direction: column; gap: .2rem; }
+.hours-row  { display: flex; gap: .75rem; font-size: .8rem; color: var(--text-sub); }
+.hours-day  { min-width: 2.5rem; color: var(--muted); font-weight: 600; font-size: .72rem; text-transform: uppercase; }
+.hours-val  { color: var(--text); }
