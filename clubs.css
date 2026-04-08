@@ -435,3 +435,151 @@
 .hours-row  { display: flex; gap: .75rem; font-size: .8rem; color: var(--text-sub); }
 .hours-day  { min-width: 2.5rem; color: var(--muted); font-weight: 600; font-size: .72rem; text-transform: uppercase; }
 .hours-val  { color: var(--text); }
+
+/* ════════════════════════════════════════════════════
+   CLUBS v4 — Onglets Tous/Favoris + Icône Favori
+════════════════════════════════════════════════════ */
+
+/* ── Onglets Tous / Favoris ─────────────────────── */
+.clubs-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: .85rem;
+}
+
+.clubs-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-sub);
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: .55rem .75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  transition: color .15s, border-color .15s;
+  margin-bottom: -1px; /* couvre la border-bottom du parent */
+}
+
+.clubs-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.clubs-tab:hover:not(.active) { color: var(--text); }
+
+.clubs-tab-count {
+  font-size: .68rem;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: .05rem .45rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.clubs-tab.active .clubs-tab-count {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Bouton favori sur la carte ─────────────────── */
+.club-fav-btn {
+  position: absolute;
+  top: .55rem;
+  left: .55rem;
+  background: rgba(0,0,0,.55);
+  border: none;
+  color: var(--text-sub);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  transition: color .15s, background .15s, transform .1s;
+  z-index: 2;
+}
+
+.club-fav-btn:hover {
+  background: rgba(0,0,0,.75);
+  transform: scale(1.12);
+  color: #f87171;
+}
+
+.club-fav-btn.active {
+  color: #f87171;
+  background: rgba(0,0,0,.65);
+}
+
+/* ── Indicateur favori dans le nom ─────────────── */
+.club-fav-indicator {
+  color: #f87171;
+  font-size: .85rem;
+  margin-left: .25rem;
+  vertical-align: middle;
+}
+
+.club-fav-indicator--lg {
+  font-size: 1.15rem;
+  color: #f87171;
+  margin-left: .45rem;
+}
+
+/* ── Bouton favori dans la fiche détail ─────────── */
+.club-detail-top-bar {
+  position: absolute;
+  top: .75rem;
+  left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 .75rem;
+  z-index: 2;
+}
+
+.club-detail-fav-btn {
+  background: rgba(0,0,0,.55);
+  border: none;
+  color: var(--text-sub);
+  border-radius: 50%;
+  width: 34px; height: 34px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  transition: color .15s, background .15s, transform .1s;
+}
+
+.club-detail-fav-btn:hover {
+  background: rgba(0,0,0,.75);
+  transform: scale(1.1);
+  color: #f87171;
+}
+
+.club-detail-fav-btn.active { color: #f87171; }
+
+.club-detail-name-row {
+  display: flex;
+  align-items: flex-start;
+  gap: .3rem;
+  margin-bottom: .75rem;
+}
+.club-detail-name-row .club-detail-name { margin-bottom: 0; }
+
+/* ── Animation retrait carte (onglet favoris) ───── */
+.club-card--removing {
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity .3s, transform .3s;
+}

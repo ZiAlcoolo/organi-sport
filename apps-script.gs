@@ -60,6 +60,8 @@ function doGet(e) {
       case 'searchClubs':   result=searchClubs(query);           break;
       case 'getMyMatches':  result=getMatchesByEmail(email);     break;
       case 'getAllSessions': result=getAllSessions();             break;
+      case 'geocode':        result=geocodeProxy(query);       break;
+      case 'geocodeBatch':   result=geocodeBatchProxy(e.parameter.addresses||''); break;
       default: result={error:'Action GET inconnue : '+action};
     }
     return jsonResponse(result);
@@ -547,6 +549,53 @@ function formatDateTimeValue(val){
   if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
   return s;
 }
+// ─────────────────────────────────────────────────────────────
+// GÉOCODAGE PROXY — Nominatim via UrlFetchApp (pas de CORS côté serveur)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Géocode une adresse via Nominatim côté serveur.
+ * Appel : GET ?action=geocode&q=12+rue+des+Sports+Bordeaux
+ * Réponse : { lat: 44.83, lon: -0.57 } ou { error: "..." }
+ */
+function geocodeProxy(address) {
+  if (!address || address.length < 4) return { error: 'Adresse trop courte' };
+  var url = 'https://nominatim.openstreetmap.org/search?format=json&q='
+    + encodeURIComponent(address) + '&limit=1&accept-language=fr';
+  try {
+    var resp = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: { 'User-Agent': 'SportSync/1.0 (contact@sportsync.app)' },
+    });
+    var code = resp.getResponseCode();
+    if (code !== 200) return { error: 'Nominatim HTTP ' + code };
+    var data = JSON.parse(resp.getContentText());
+    if (!data || !data.length) return { error: 'Adresse introuvable' };
+    return { lat: Number(data[0].lat), lon: Number(data[0].lon), display: data[0].display_name };
+  } catch(e) {
+    return { error: e.message };
+  }
+}
+
+/**
+ * Géocode une liste d'adresses en une seule requête GAS.
+ * Appel : GET ?action=geocodeBatch&addresses=addr1|addr2|addr3
+ * Réponse : { results: [{ idx, lat, lon } | { idx, error }] }
+ * Respecte la limite Nominatim : 1 req/s (Utilities.sleep entre les requêtes).
+ */
+function geocodeBatchProxy(addressesStr) {
+  if (!addressesStr) return { results: [] };
+  var addresses = addressesStr.split('|').map(function(a){ return a.trim(); });
+  var results = [];
+  for (var i = 0; i < addresses.length; i++) {
+    if (i > 0) Utilities.sleep(1100); // Nominatim : max 1 req/s
+    var r = geocodeProxy(addresses[i]);
+    r.idx = i;
+    results.push(r);
+  }
+  return { results: results };
+}
+
 function generateId(){return String(Date.now())+String(Math.floor(Math.random()*9000+1000));}
 function jsonResponse(data){return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);}
 

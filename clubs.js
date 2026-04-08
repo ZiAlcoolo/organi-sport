@@ -1,16 +1,14 @@
 /**
  * ════════════════════════════════════════════════════════════════
- * SPORTSYNC — clubs.js  v3
- * Annuaire des clubs
+ * SPORTSYNC — clubs.js  v4
  * ════════════════════════════════════════════════════════════════
  *
- * Nouveautés v3 :
- *   - Multi-sports : champ `sport` = "Padel, Squash, Bad" → tags séparés
- *   - Filtres par sport individuel (pills scrollables)
- *   - Colonne `installations` (JSON Ten'up) : affichage par sport + surface + couverts
- *   - Notes personnelles locales (localStorage, editables dans la fiche)
- *   - Calcul de distance via Nominatim (géocodage gratuit, aucune clé API)
- *     + tri automatique par distance
+ * v4 :
+ *   - CORS FIX : géocodage via GAS proxy (UrlFetchApp) au lieu de
+ *     Nominatim directement (qui bloque les navigateurs en CORS)
+ *   - Géocodage batch : une seule requête GAS pour tous les clubs
+ *   - FAVORIS : icône ♥ sur chaque carte, onglet dédié "Mes favoris"
+ *     persisté en localStorage
  */
 ;(function($){
   'use strict';
@@ -19,24 +17,25 @@
   // 1. STATE
   // ══════════════════════════════════════════════════
   const CS = {
-    clubs:           [],
-    filteredClubs:   [],
-    activeClub:      null,
-    searchQuery:     '',
-    sportFilter:     '',        // sport individuel sélectionné (lowercase)
-    sortBy:          'name',    // 'name' | 'distance'
-    userCoords:      null,      // { lat, lon } après géocodage
-    userAddress:     '',
-    geocodeTimer:    null,
-    geocodeLoading:  false,
+    clubs:          [],
+    filteredClubs:  [],
+    activeClub:     null,
+    searchQuery:    '',
+    sportFilter:    '',
+    activeTab:      'all',      // 'all' | 'favorites'
+    sortBy:         'name',     // 'name' | 'distance'
+    userCoords:     null,
+    userAddress:    '',
+    geocodeTimer:   null,
+    geocodingBatch: false,
   };
 
-  const LS_NOTES_KEY     = 'sportsync_club_notes';     // { clubId: "texte" }
-  const LS_ADDRESS_KEY   = 'sportsync_user_address';
+  const LS_NOTES_KEY   = 'sportsync_club_notes';
+  const LS_ADDRESS_KEY = 'sportsync_user_address';
+  const LS_FAVS_KEY    = 'sportsync_club_favorites';  // Set d'ids
 
   // ══════════════════════════════════════════════════
-  // 2. CONFIGURATION SPORTS
-  //    Liste officielle : les sports affichés en priorité dans les filtres
+  // 2. SPORTS
   // ══════════════════════════════════════════════════
   const SPORTS_PRIORITY = ['Padel','Squash','Bad','Pickleball','Five','Tennis'];
 
@@ -53,200 +52,209 @@
     'basket':'🏀','handball':'🤾','natation':'🏊','cyclisme':'🚴','default':'🏅',
   };
 
-  function sportColor(sport){
-    if(!sport) return SPORT_COLORS.default;
-    const s=sport.toLowerCase();
-    for(const k in SPORT_COLORS)if(s.includes(k))return SPORT_COLORS[k];
+  function sportColor(s){
+    if(!s)return SPORT_COLORS.default;
+    const k=s.toLowerCase();
+    for(const n in SPORT_COLORS)if(k.includes(n))return SPORT_COLORS[n];
     return SPORT_COLORS.default;
   }
-  function sportEmoji(sport){
-    if(!sport)return SPORT_EMOJI.default;
-    const s=sport.toLowerCase();
-    for(const k in SPORT_EMOJI)if(s.includes(k))return SPORT_EMOJI[k];
+  function sportEmoji(s){
+    if(!s)return SPORT_EMOJI.default;
+    const k=s.toLowerCase();
+    for(const n in SPORT_EMOJI)if(k.includes(n))return SPORT_EMOJI[n];
     return SPORT_EMOJI.default;
   }
-
-  /**
-   * Parse la chaîne multi-sports "Padel, Squash, Bad" → ['Padel','Squash','Bad']
-   * Normalise et dédoublonne.
-   */
   function parseSports(raw){
     if(!raw)return[];
     return raw.split(',').map(s=>s.trim()).filter(Boolean);
   }
+  function getAllSportsFromClubs(clubs){
+    const set=new Set();
+    clubs.forEach(c=>parseSports(c.sport).forEach(s=>set.add(s)));
+    const priority=SPORTS_PRIORITY.filter(s=>set.has(s));
+    const others=[...set].filter(s=>!SPORTS_PRIORITY.includes(s)).sort();
+    return [...priority,...others];
+  }
 
-  /** Retourne l'URL de photo placeholder selon le premier sport */
   function photoUrl(club){
     if(club.photoUrl&&club.photoUrl.startsWith('http'))return club.photoUrl;
     const sports=parseSports(club.sport);
-    const sportQuery=(sports[0]||'sport').toLowerCase().replace(/\s+/,',');
-    return `https://source.unsplash.com/featured/400x200/?${encodeURIComponent(sportQuery)},court,sport`;
+    const q=(sports[0]||'sport').toLowerCase().replace(/\s+/,',');
+    return`https://source.unsplash.com/featured/400x200/?${encodeURIComponent(q)},court,sport`;
   }
 
   // ══════════════════════════════════════════════════
-  // 3. EXTRACTION DES SPORTS UNIQUES (pour les filtres)
+  // 3. FAVORIS
   // ══════════════════════════════════════════════════
-  function getAllSportsFromClubs(clubs){
-    const set = new Set();
-    clubs.forEach(c => parseSports(c.sport).forEach(s => set.add(s)));
-    // Trier : sports prioritaires d'abord, puis le reste alphabétique
-    const priority = SPORTS_PRIORITY.filter(s => set.has(s));
-    const others   = [...set].filter(s => !SPORTS_PRIORITY.includes(s)).sort();
-    return [...priority, ...others];
+  function getFavorites(){
+    try{return new Set(JSON.parse(localStorage.getItem(LS_FAVS_KEY)||'[]'));}
+    catch(e){return new Set();}
+  }
+  function saveFavorites(set){
+    localStorage.setItem(LS_FAVS_KEY,JSON.stringify([...set]));
+  }
+  function isFavorite(clubId){return getFavorites().has(String(clubId));}
+
+  function toggleFavorite(clubId){
+    const favs=getFavorites();
+    const id=String(clubId);
+    if(favs.has(id))favs.delete(id);
+    else            favs.add(id);
+    saveFavorites(favs);
+    return favs.has(id); // true = ajouté
   }
 
   // ══════════════════════════════════════════════════
-  // 4. INSTALLATIONS (style Ten'up)
-  //
-  // Format JSON dans la colonne `installations` :
-  // [
-  //   { "sport": "Padel", "surface": "Gazon synthétique", "total": 4, "covered": 4 },
-  //   { "sport": "Squash", "surface": "Résine", "total": 3, "covered": 3 },
-  //   { "sport": "Tennis", "surface": "Terre battue", "total": 6, "covered": 2 }
-  // ]
+  // 4. INSTALLATIONS
   // ══════════════════════════════════════════════════
   function parseInstallations(raw){
     if(!raw)return[];
-    try{
-      const data=typeof raw==='string'&&raw.trim().startsWith('[')?JSON.parse(raw):null;
-      return Array.isArray(data)?data:[];
-    }catch(e){return[];}
+    try{const d=typeof raw==='string'&&raw.trim().startsWith('[')?JSON.parse(raw):null;
+      return Array.isArray(d)?d:[];}catch(e){return[];}
   }
 
   function renderInstallations(raw){
-    const installs=parseInstallations(raw);
-    if(!installs.length)return'';
-    const rows=installs.map(inst=>{
-      const total   = Number(inst.total)||0;
-      const covered = Number(inst.covered)||0;
-      const open    = total-covered;
-      const coverStr = covered===total
-        ? `${total} terrain${total>1?'s':''} (${covered} couvert${covered>1?'s':''})`
-        : covered===0
-        ? `${total} terrain${total>1?'s':''}`
-        : `${total} terrain${total>1?'s':''} (${covered} couvert${covered>1?'s':''}, ${open} découvert${open>1?'s':''})`;
-      return `<div class="install-row">
-        <div class="install-sport">${sportEmoji(inst.sport||'')} ${inst.sport||'—'}</div>
-        ${inst.surface?`<div class="install-surface">${inst.surface}</div>`:''}
-        <div class="install-count">${coverStr}</div>
+    const inst=parseInstallations(raw);if(!inst.length)return'';
+    const rows=inst.map(i=>{
+      const t=Number(i.total)||0,cv=Number(i.covered)||0,op=t-cv;
+      const s=cv===t?`${t} terrain${t>1?'s':''} (${cv} couvert${cv>1?'s':''})`
+               :cv===0?`${t} terrain${t>1?'s':''}`
+               :`${t} terrain${t>1?'s':''} (${cv} couvert${cv>1?'s':''}, ${op} découvert${op>1?'s':''})`;
+      return`<div class="install-row">
+        <div class="install-sport">${sportEmoji(i.sport||'')} ${i.sport||'—'}</div>
+        ${i.surface?`<div class="install-surface">${i.surface}</div>`:''}
+        <div class="install-count">${s}</div>
       </div>`;
     }).join('');
-    return `<div class="installations-block">
-      <div class="installations-title">🏗 Installations</div>
-      ${rows}
-    </div>`;
+    return`<div class="installations-block"><div class="installations-title">🏗 Installations</div>${rows}</div>`;
   }
 
-  /** Résumé compact pour la carte (ex: "🎾×4  🏸×3") */
   function installSummary(raw){
-    const installs=parseInstallations(raw);
-    if(!installs.length)return'';
-    return installs.map(i=>`${sportEmoji(i.sport||'')}×${i.total||'?'}`).join('  ');
+    const inst=parseInstallations(raw);if(!inst.length)return'';
+    return inst.map(i=>`${sportEmoji(i.sport||'')}×${i.total||'?'}`).join('  ');
   }
 
   // ══════════════════════════════════════════════════
-  // 5. NOTES LOCALES (localStorage)
+  // 5. NOTES LOCALES
   // ══════════════════════════════════════════════════
-  function getLocalNotes(){
-    try{return JSON.parse(localStorage.getItem(LS_NOTES_KEY)||'{}');}catch(e){return{};}
-  }
+  function getLocalNotes(){try{return JSON.parse(localStorage.getItem(LS_NOTES_KEY)||'{}');}catch(e){return{};}}
   function saveLocalNote(clubId,text){
-    const notes=getLocalNotes();
-    if(text.trim())notes[clubId]=text;
-    else delete notes[clubId];
-    localStorage.setItem(LS_NOTES_KEY,JSON.stringify(notes));
+    const n=getLocalNotes();
+    if(text.trim())n[clubId]=text;else delete n[clubId];
+    localStorage.setItem(LS_NOTES_KEY,JSON.stringify(n));
   }
-  function getLocalNote(clubId){
-    return getLocalNotes()[clubId]||'';
-  }
+  function getLocalNote(clubId){return getLocalNotes()[clubId]||'';}
 
   // ══════════════════════════════════════════════════
-  // 6. CALCUL DE DISTANCE (Nominatim + Haversine)
+  // 6. GÉOCODAGE — VIA GAS PROXY (CORS FIX)
+  //
+  //  AVANT (bloqué par CORS depuis le navigateur) :
+  //    fetch('https://nominatim.openstreetmap.org/search?...')
+  //
+  //  APRÈS (GAS = serveur, pas de CORS) :
+  //    gasRequest('GET', null, { action:'geocode', q: address })
+  //    gasRequest('GET', null, { action:'geocodeBatch', addresses:'a1|a2|a3' })
   // ══════════════════════════════════════════════════
 
-  /**
-   * Géocode une adresse via Nominatim (OpenStreetMap, gratuit, sans clé).
-   * Retourne { lat, lon } ou null.
-   * Respecte la politique d'usage : max 1 req/s, User-Agent identifié.
-   */
-  async function geocodeAddress(address){
-    if(!address||address.length<5)return null;
-    const url=`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
+  /** Géocode l'adresse de l'utilisateur via le proxy GAS */
+  async function geocodeUserAddress(address){
+    if(!address||address.length<4)return null;
     try{
-      const resp=await fetch(url,{
-        headers:{'Accept-Language':'fr','User-Agent':'SportSync/1.0 (sport.app)'},
-      });
-      const data=await resp.json();
-      if(data&&data.length>0)return{lat:Number(data[0].lat),lon:Number(data[0].lon)};
-    }catch(e){console.warn('[geocode]',e);}
+      const r=await gasRequest('GET',null,{action:'geocode',q:address});
+      if(r&&r.lat&&r.lon)return{lat:Number(r.lat),lon:Number(r.lon)};
+    }catch(e){console.warn('[geocode user]',e);}
     return null;
   }
 
   /**
-   * Géocode une adresse de club (depuis son champ address ou mapsUrl).
-   * Utilise un cache en mémoire sur CS.clubs pour éviter les re-requêtes.
+   * Géocode tous les clubs en un seul appel GAS batch.
+   * GAS appelle Nominatim séquentiellement (1 req/s) côté serveur.
+   * Les clubs déjà géocodés (_lat/_lon en mémoire) sont ignorés.
    */
-  async function geocodeClub(club){
-    if(club._lat&&club._lon)return{lat:club._lat,lon:club._lon};
-    const addr=club.address||(club.name+', France');
-    const coords=await geocodeAddress(addr);
-    if(coords){club._lat=coords.lat;club._lon=coords.lon;}
-    return coords;
+  async function geocodeAllClubs(){
+    const needGeocode=CS.clubs.filter(c=>!c._lat||!c._lon);
+    if(!needGeocode.length)return;
+
+    // Construire la liste d'adresses (séparateur |)
+    const addresses=needGeocode.map(c=>c.address||(c.name+', France'));
+    CS.geocodingBatch=true;
+    $('#clubs-distance-status').text(`Géolocalisation de ${needGeocode.length} clubs…`).addClass('loading');
+
+    try{
+      const r=await gasRequest('GET',null,{
+        action:'geocodeBatch',
+        addresses:addresses.join('|'),
+      });
+      if(r&&r.results){
+        r.results.forEach(res=>{
+          if(res.lat&&res.lon){
+            needGeocode[res.idx]._lat=Number(res.lat);
+            needGeocode[res.idx]._lon=Number(res.lon);
+          }
+        });
+      }
+    }catch(e){
+      console.warn('[geocode batch]',e);
+      $('#clubs-distance-status').text('Erreur de géolocalisation').addClass('error').removeClass('loading');
+    }
+    CS.geocodingBatch=false;
   }
 
-  /**
-   * Distance Haversine en km entre deux coordonnées.
-   */
+  /** Distance Haversine (km) */
   function haversine(lat1,lon1,lat2,lon2){
-    const R=6371;
-    const dLat=(lat2-lat1)*Math.PI/180;
-    const dLon=(lon2-lon1)*Math.PI/180;
-    const a=Math.sin(dLat/2)*Math.sin(dLat/2)+
-            Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
-            Math.sin(dLon/2)*Math.sin(dLon/2);
+    const R=6371,toRad=x=>x*Math.PI/180;
+    const dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
+    const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
     return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
   }
-
   function distanceLabel(km){
-    if(km<1)return`${Math.round(km*1000)} m`;
-    return`${km.toFixed(1).replace('.',',')} km`;
+    return km<1?`${Math.round(km*1000)} m`:`${km.toFixed(1).replace('.',',')} km`;
   }
 
   /**
-   * Lance le géocodage de l'adresse utilisateur et met à jour les distances.
-   * Appelé après un debounce de 800ms sur l'input adresse.
+   * Lance le géocodage de l'adresse utilisateur et calcule les distances.
+   * Appelé après debounce 800ms sur l'input.
    */
   async function updateDistances(){
     const addr=$('#clubs-distance-input').val().trim();
     if(!addr){
       CS.userCoords=null;CS.userAddress='';
       CS.clubs.forEach(c=>{c._dist=null;c._distLabel='';});
+      localStorage.removeItem(LS_ADDRESS_KEY);
+      $('#clubs-distance-status').text('');
       applyFilters();return;
     }
-    CS.geocodeLoading=true;
-    $('#clubs-distance-status').text('Géolocalisation…').addClass('loading');
     CS.userAddress=addr;
-    const coords=await geocodeAddress(addr);
-    if(!coords){
+    $('#clubs-distance-status').text('Géolocalisation de votre adresse…').addClass('loading').removeClass('error');
+
+    // 1. Géocoder l'adresse utilisateur
+    const userCoords=await geocodeUserAddress(addr);
+    if(!userCoords){
       $('#clubs-distance-status').text('Adresse introuvable').removeClass('loading').addClass('error');
-      CS.geocodeLoading=false;return;
+      return;
     }
-    CS.userCoords=coords;
+    CS.userCoords=userCoords;
     localStorage.setItem(LS_ADDRESS_KEY,addr);
-    // Calculer les distances de tous les clubs
+    $('#clubs-distance-status').text('Géolocalisation des clubs…');
+
+    // 2. Géocoder les clubs non encore géocodés (batch)
+    await geocodeAllClubs();
+
+    // 3. Calculer les distances
     let geocoded=0;
-    for(const club of CS.clubs){
-      const cCoords=await geocodeClub(club);
-      if(cCoords){
-        club._dist=haversine(coords.lat,coords.lon,cCoords.lat,cCoords.lon);
-        club._distLabel=distanceLabel(club._dist);
+    CS.clubs.forEach(c=>{
+      if(c._lat&&c._lon){
+        c._dist=haversine(userCoords.lat,userCoords.lon,c._lat,c._lon);
+        c._distLabel=distanceLabel(c._dist);
         geocoded++;
-      }else{club._dist=null;club._distLabel='';}
-    }
-    CS.geocodeLoading=false;
-    $('#clubs-distance-status').text(`${geocoded} clubs géolocalisés`).removeClass('loading').removeClass('error');
-    if(CS.sortBy==='distance')applyFilters();
-    else applyFilters();
+      }else{c._dist=null;c._distLabel='';}
+    });
+
+    $('#clubs-distance-status').text(`${geocoded} clubs localisés ✓`).removeClass('loading').removeClass('error');
+
+    // Basculer auto sur le tri par distance
+    CS.sortBy='distance';
+    applyFilters();
   }
 
   // ══════════════════════════════════════════════════
@@ -265,35 +273,36 @@
     applyFilters();
   }
 
-  /** Restaure les distances déjà calculées si l'utilisateur a une adresse sauvegardée */
   function _restoreDistances(){
     const savedAddr=localStorage.getItem(LS_ADDRESS_KEY)||'';
     if(savedAddr){
       $('#clubs-distance-input').val(savedAddr);
-      // Lancer le géocodage en arrière-plan sans bloquer l'affichage
-      setTimeout(updateDistances,500);
+      // Géocodage silencieux en arrière-plan
+      setTimeout(updateDistances,600);
     }
   }
 
   function applyFilters(){
+    const favs=getFavorites();
     let clubs=[...CS.clubs];
+
+    // Onglet favoris
+    if(CS.activeTab==='favorites')clubs=clubs.filter(c=>favs.has(String(c.id)));
+
     // Filtre texte
     const q=CS.searchQuery.toLowerCase();
     if(q)clubs=clubs.filter(c=>
       c.name.toLowerCase().includes(q)||
       (c.address||'').toLowerCase().includes(q)||
       parseSports(c.sport).some(s=>s.toLowerCase().includes(q)));
-    // Filtre sport (multi-sport)
+
+    // Filtre sport
     const sp=CS.sportFilter;
-    if(sp)clubs=clubs.filter(c=>
-      parseSports(c.sport).some(s=>s.toLowerCase()===sp.toLowerCase()));
+    if(sp)clubs=clubs.filter(c=>parseSports(c.sport).some(s=>s.toLowerCase()===sp.toLowerCase()));
+
     // Tri
     if(CS.sortBy==='distance'&&CS.userCoords){
-      clubs.sort((a,b)=>{
-        const da=a._dist!=null?a._dist:Infinity;
-        const db=b._dist!=null?b._dist:Infinity;
-        return da-db;
-      });
+      clubs.sort((a,b)=>(a._dist!=null?a._dist:Infinity)-(b._dist!=null?b._dist:Infinity));
     }else{
       clubs.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
     }
@@ -308,49 +317,60 @@
 
   function renderList(){
     const $c=$('#clubs-list');if(!$c.length)return;
-
-    // ── Toolbar (filtres + distance) ──────────────────
+    const favs=getFavorites();
+    const favCount=favs.size;
     const allSports=getAllSportsFromClubs(CS.clubs);
-    const sportTabs=`<div class="sport-tabs" id="sport-tabs-container">
+
+    // ── Onglets Tous / Favoris ──
+    const tabs=`<div class="clubs-tabs">
+      <button class="clubs-tab ${CS.activeTab==='all'?'active':''}" data-tab="all">
+        Tous <span class="clubs-tab-count">${CS.clubs.length}</span>
+      </button>
+      <button class="clubs-tab ${CS.activeTab==='favorites'?'active':''}" data-tab="favorites">
+        ♥ Favoris <span class="clubs-tab-count">${favCount}</span>
+      </button>
+    </div>`;
+
+    // ── Filtres sport ──
+    const sportTabs=`<div class="sport-tabs">
       <button class="sport-tab ${!CS.sportFilter?'active':''}" data-sport="">Tous</button>
       ${allSports.map(s=>`<button class="sport-tab ${CS.sportFilter.toLowerCase()===s.toLowerCase()?'active':''}" data-sport="${s}">${sportEmoji(s)} ${s}</button>`).join('')}
     </div>`;
 
-    const sortBtn=CS.userCoords
-      ? `<div class="clubs-sort-row">
-          <button class="clubs-sort-btn ${CS.sortBy==='name'?'active':''}" data-sort="name">🔤 Nom</button>
-          <button class="clubs-sort-btn ${CS.sortBy==='distance'?'active':''}" data-sort="distance">📍 Distance</button>
-         </div>`
-      : '';
-
+    // ── Barre distance ──
     const distanceBar=`<div class="clubs-distance-bar">
       <div class="clubs-distance-input-wrap">
         <span class="clubs-distance-icon">📍</span>
         <input type="text" id="clubs-distance-input" class="clubs-distance-input"
-          placeholder="Votre adresse pour calculer les distances…" autocomplete="street-address" />
-        <button class="clubs-distance-clear ${CS.userCoords?'':'hidden'}" id="clubs-distance-clear">✕</button>
+          value="${CS.userAddress||localStorage.getItem(LS_ADDRESS_KEY)||''}"
+          placeholder="Votre adresse pour trier par proximité…" autocomplete="street-address" />
+        <button class="clubs-distance-clear ${CS.userCoords?'':'hidden'}" id="clubs-distance-clear" title="Effacer">✕</button>
       </div>
       <span class="clubs-distance-status" id="clubs-distance-status"></span>
     </div>`;
 
-    // ── Cartes ────────────────────────────────────────
+    // ── Boutons tri ──
+    const sortRow=CS.userCoords?`<div class="clubs-sort-row">
+      <button class="clubs-sort-btn ${CS.sortBy==='name'?'active':''}" data-sort="name">🔤 Nom</button>
+      <button class="clubs-sort-btn ${CS.sortBy==='distance'?'active':''}" data-sort="distance">📍 Distance</button>
+    </div>`:'';
+
     if(!CS.filteredClubs.length){
-      $c.html(sportTabs+distanceBar+sortBtn+`<div class="clubs-empty"><div class="clubs-empty-icon">🏟️</div>
-        <p>${CS.searchQuery||CS.sportFilter?'Aucun club trouvé pour cette recherche.':'Aucun club enregistré.'}</p>
-        ${!CS.searchQuery&&!CS.sportFilter?'<p class="clubs-empty-sub">Ajoutez des clubs dans l\'onglet "Clubs" de votre Google Sheet.</p>':''}</div>`);
-      bindFilterEvents($c);return;
+      $c.html(tabs+sportTabs+distanceBar+sortRow+`<div class="clubs-empty">
+        <div class="clubs-empty-icon">${CS.activeTab==='favorites'?'♥':'🏟️'}</div>
+        <p>${CS.activeTab==='favorites'?'Aucun favori enregistré.':CS.searchQuery||CS.sportFilter?'Aucun club trouvé.':'Aucun club enregistré.'}</p>
+        ${CS.activeTab==='favorites'?'<p class="clubs-empty-sub">Cliquez sur ♥ sur une carte pour ajouter un club à vos favoris.</p>':''}
+      </div>`);
+      bindListEvents($c);return;
     }
 
     const cards=CS.filteredClubs.map(c=>{
-      const sports  = parseSports(c.sport);
-      const color   = sportColor(sports[0]);
-      const img     = photoUrl(c);
-      const instSum = installSummary(c.installations);
-      const distBadge = c._distLabel
-        ? `<span class="club-badge club-badge--dist">📍 ${c._distLabel}</span>` : '';
+      const sports=parseSports(c.sport);
+      const img=photoUrl(c);
+      const instSum=installSummary(c.installations);
+      const isFav=favs.has(String(c.id));
 
-      // Pills multi-sports pour la carte
-      const sportPills = sports.map(s=>
+      const sportPills=sports.map(s=>
         `<span class="club-sport-pill" style="background:${sportColor(s)}22;border-color:${sportColor(s)}44;color:${sportColor(s)}">${sportEmoji(s)} ${s}</span>`
       ).join('');
 
@@ -358,49 +378,74 @@
         <div class="club-card-photo" style="background-image:url('${img}')">
           <div class="club-card-sports-row">${sportPills}</div>
           ${c._distLabel?`<div class="club-card-dist-badge">📍 ${c._distLabel}</div>`:''}
+          <button class="club-fav-btn ${isFav?'active':''}" data-club-id="${c.id}" title="${isFav?'Retirer des favoris':'Ajouter aux favoris'}">
+            ${isFav?'♥':'♡'}
+          </button>
         </div>
         <div class="club-card-body">
-          <div class="club-card-name">${c.name}</div>
+          <div class="club-card-name">${c.name} ${isFav?'<span class="club-fav-indicator" title="Favori">♥</span>':''}</div>
           ${c.address?`<div class="club-card-addr">📍 ${c.address}</div>`:''}
           <div class="club-card-badges">
             ${c.pricing?`<span class="club-badge">💶 ${c.pricing}</span>`:''}
             ${instSum?`<span class="club-badge club-badge--install">${instSum}</span>`:''}
-            ${distBadge}
+            ${c._distLabel?`<span class="club-badge club-badge--dist">📍 ${c._distLabel}</span>`:''}
           </div>
         </div>
       </div>`;
     }).join('');
 
-    $c.html(sportTabs+distanceBar+sortBtn+`<div class="clubs-grid">${cards}</div>`);
-    bindFilterEvents($c);
+    $c.html(tabs+sportTabs+distanceBar+sortRow+`<div class="clubs-grid">${cards}</div>`);
+    bindListEvents($c);
   }
 
-  function bindFilterEvents($c){
-    // Tabs sport
+  function bindListEvents($c){
+    // Onglets
+    $c.off('click','.clubs-tab').on('click','.clubs-tab',function(){
+      CS.activeTab=$(this).data('tab');applyFilters();
+    });
+    // Filtres sport
     $c.off('click','.sport-tab').on('click','.sport-tab',function(){
-      CS.sportFilter=$(this).data('sport');
-      applyFilters();
+      CS.sportFilter=$(this).data('sport');applyFilters();
     });
     // Tri
     $c.off('click','.clubs-sort-btn').on('click','.clubs-sort-btn',function(){
-      CS.sortBy=$(this).data('sort');
-      applyFilters();
+      CS.sortBy=$(this).data('sort');applyFilters();
     });
-    // Clic carte
+    // Favori (stopper la propagation pour ne pas ouvrir la fiche)
+    $c.off('click','.club-fav-btn').on('click','.club-fav-btn',function(e){
+      e.stopPropagation();
+      const id=$(this).data('club-id');
+      const added=toggleFavorite(id);
+      const icon=added?'♥':'♡';
+      const $btn=$(this);
+      $btn.toggleClass('active',added).text(icon).attr('title',added?'Retirer des favoris':'Ajouter aux favoris');
+      // Mettre à jour l'indicateur dans le nom
+      const $card=$btn.closest('.club-card');
+      const $name=$card.find('.club-card-name');
+      $name.find('.club-fav-indicator').remove();
+      if(added)$name.append('<span class="club-fav-indicator" title="Favori">♥</span>');
+      // Si on est dans l'onglet favoris et qu'on retire, masquer la carte
+      if(CS.activeTab==='favorites'&&!added){
+        $card.addClass('club-card--removing');
+        setTimeout(()=>applyFilters(),350);
+      }
+      typeof showToast==='function'&&showToast(added?'Ajouté aux favoris ♥':'Retiré des favoris','');
+    });
+    // Clic carte → fiche
     $c.off('click','.club-card').on('click','.club-card',function(){
       const id=String($(this).data('club-id'));
       const club=CS.clubs.find(c=>String(c.id)===id);
       if(club)openDetail(club);
     });
-    // Distance input — debounce 800ms
-    const $distInput=$('#clubs-distance-input');
-    $distInput.off('input').on('input',function(){
+    // Distance input
+    $c.find('#clubs-distance-input').off('input').on('input',function(){
       clearTimeout(CS.geocodeTimer);
       CS.geocodeTimer=setTimeout(updateDistances,800);
     });
     // Clear distance
-    $('#clubs-distance-clear').off('click').on('click',function(){
-      $distInput.val('');CS.userCoords=null;CS.userAddress='';
+    $c.find('#clubs-distance-clear').off('click').on('click',function(){
+      $c.find('#clubs-distance-input').val('');
+      CS.userCoords=null;CS.userAddress='';
       CS.clubs.forEach(c=>{c._dist=null;c._distLabel='';});
       localStorage.removeItem(LS_ADDRESS_KEY);
       $('#clubs-distance-status').text('');
@@ -416,24 +461,31 @@
     CS.activeClub=club;
     const $overlay=$('#club-detail-overlay');
     const sports=parseSports(club.sport);
-    const color=sportColor(sports[0]);
     const img=photoUrl(club);
     const localNote=getLocalNote(club.id);
     const installHTML=renderInstallations(club.installations);
+    const isFav=isFavorite(club.id);
 
-    // Pills sports pour la fiche
     const sportPills=sports.map(s=>
       `<span class="detail-sport-pill" style="background:${sportColor(s)}22;border-color:${sportColor(s)}44;color:${sportColor(s)}">${sportEmoji(s)} ${s}</span>`
     ).join('');
 
     $overlay.find('#club-detail-content').html(`
       <div class="club-detail-photo" style="background-image:url('${img}')">
-        <button class="club-detail-close" id="btn-club-close">✕</button>
+        <div class="club-detail-top-bar">
+          <button class="club-detail-close" id="btn-club-close">✕</button>
+          <button class="club-detail-fav-btn ${isFav?'active':''}" id="btn-club-fav" data-club-id="${club.id}" title="${isFav?'Retirer des favoris':'Ajouter aux favoris'}">
+            ${isFav?'♥':'♡'}
+          </button>
+        </div>
         <div class="club-detail-sports">${sportPills}</div>
         ${club._distLabel?`<div class="club-detail-dist">📍 ${club._distLabel}</div>`:''}
       </div>
       <div class="club-detail-body">
-        <h2 class="club-detail-name">${club.name}</h2>
+        <div class="club-detail-name-row">
+          <h2 class="club-detail-name">${club.name}</h2>
+          ${isFav?'<span class="club-fav-indicator club-fav-indicator--lg">♥</span>':''}
+        </div>
 
         ${club.address?`<div class="club-detail-row">📍 <span>${club.address}</span></div>`:''}
         ${club._distLabel?`<div class="club-detail-row">🛣 <span>${club._distLabel} de votre adresse</span></div>`:''}
@@ -446,15 +498,13 @@
 
         ${club.notes?`<div class="club-detail-notes">${club.notes}</div>`:''}
 
-        <!-- Notes personnelles locales -->
         <div class="local-notes-section">
           <div class="local-notes-header">
             <span class="local-notes-title">📝 Mes notes personnelles</span>
             <span class="local-notes-hint">Sauvegardé sur cet appareil uniquement</span>
           </div>
           <textarea class="local-notes-textarea" id="local-notes-input"
-            placeholder="Ajouter vos notes sur ce club (stationnement, contact, préférences…)"
-            rows="3">${localNote}</textarea>
+            placeholder="Stationnement, contact, préférences…" rows="3">${localNote}</textarea>
         </div>
 
         <div class="club-detail-actions">
@@ -467,56 +517,59 @@
 
     $overlay.removeClass('hidden');
 
-    // Auto-save notes au keyup (debounce 600ms)
+    // Favori depuis la fiche
+    $overlay.find('#btn-club-fav').off('click').on('click',function(){
+      const id=$(this).data('club-id');
+      const added=toggleFavorite(id);
+      $(this).toggleClass('active',added).text(added?'♥':'♡').attr('title',added?'Retirer des favoris':'Ajouter aux favoris');
+      $overlay.find('.club-fav-indicator--lg').remove();
+      if(added)$overlay.find('.club-detail-name-row').append('<span class="club-fav-indicator club-fav-indicator--lg">♥</span>');
+      typeof showToast==='function'&&showToast(added?'Ajouté aux favoris ♥':'Retiré des favoris','');
+      // Mettre à jour la carte dans la liste si visible
+      const $card=$(`.club-card[data-club-id="${id}"]`);
+      if($card.length){
+        $card.find('.club-fav-btn').toggleClass('active',added).text(added?'♥':'♡');
+        $card.find('.club-card-name .club-fav-indicator').remove();
+        if(added)$card.find('.club-card-name').append('<span class="club-fav-indicator">♥</span>');
+      }
+    });
+
+    // Auto-save notes
     let noteTimer=null;
-    $overlay.find('#local-notes-input').on('input',function(){
+    $overlay.find('#local-notes-input').off('input').on('input',function(){
       clearTimeout(noteTimer);
       const val=$(this).val();
-      noteTimer=setTimeout(()=>{
-        saveLocalNote(club.id,val);
-        _showNoteSaved($overlay);
-      },600);
+      noteTimer=setTimeout(()=>{saveLocalNote(club.id,val);_showNoteSaved($overlay);},600);
     });
   }
 
   function _showNoteSaved($overlay){
-    let $badge=$overlay.find('.note-saved-badge');
-    if(!$badge.length){
-      $badge=$('<span class="note-saved-badge">✓ Sauvegardé</span>');
-      $overlay.find('.local-notes-header').append($badge);
-    }
-    $badge.addClass('visible');
-    setTimeout(()=>$badge.removeClass('visible'),1800);
+    let $b=$overlay.find('.note-saved-badge');
+    if(!$b.length){$b=$('<span class="note-saved-badge">✓ Sauvegardé</span>');$overlay.find('.local-notes-header').append($b);}
+    $b.addClass('visible');setTimeout(()=>$b.removeClass('visible'),1800);
   }
 
   // ══════════════════════════════════════════════════
-  // 10. UTILITAIRES formatage
+  // 10. UTILITAIRES
   // ══════════════════════════════════════════════════
-  function formatHours(hoursRaw){
-    if(!hoursRaw)return'';
+  function formatHours(raw){
+    if(!raw)return'';
     try{
-      const h=typeof hoursRaw==='string'&&hoursRaw.trim().startsWith('{')?JSON.parse(hoursRaw):null;
-      if(!h)return`<span>${hoursRaw}</span>`;
+      const h=typeof raw==='string'&&raw.trim().startsWith('{')?JSON.parse(raw):null;
+      if(!h)return`<span>${raw}</span>`;
       const days=['lun','mar','mer','jeu','ven','sam','dim'];
-      const daysFr=['Lun.','Mar.','Mer.','Jeu.','Ven.','Sam.','Dim.'];
-      return days.map((d,i)=>{
-        const v=h[d]||h[daysFr[i]]||h[daysFr[i].toLowerCase()]||'';
-        return v?`<span class="hours-row"><span class="hours-day">${daysFr[i]}</span><span class="hours-val">${v}</span></span>`:'';
+      const fr=['Lun.','Mar.','Mer.','Jeu.','Ven.','Sam.','Dim.'];
+      return days.map((d,i)=>{const v=h[d]||h[fr[i]]||h[fr[i].toLowerCase()]||'';
+        return v?`<span class="hours-row"><span class="hours-day">${fr[i]}</span><span class="hours-val">${v}</span></span>`:'';
       }).filter(Boolean).join('');
-    }catch(e){return`<span>${hoursRaw}</span>`;}
+    }catch(e){return`<span>${raw}</span>`;}
   }
 
   // ══════════════════════════════════════════════════
   // 11. ACTIONS
   // ══════════════════════════════════════════════════
   function openById(id){
-    if(!CS.clubs.length){
-      loadClubs().then(()=>{
-        const club=CS.clubs.find(c=>String(c.id)===String(id));
-        if(club)openDetail(club);
-      });
-      return;
-    }
+    if(!CS.clubs.length){loadClubs().then(()=>{const c=CS.clubs.find(c=>String(c.id)===String(id));if(c)openDetail(c);});return;}
     const club=CS.clubs.find(c=>String(c.id)===String(id));
     if(club)openDetail(club);
     else typeof showToast==='function'&&showToast('Club introuvable','error');
@@ -525,15 +578,10 @@
   function closeDetail(){$('#club-detail-overlay').addClass('hidden');CS.activeClub=null;}
 
   function bindEvents(){
-    // Recherche texte
-    $(document).on('input','#clubs-search',function(){
-      CS.searchQuery=$(this).val().trim();applyFilters();
-    });
-    // Fermer modale
+    $(document).on('input','#clubs-search',function(){CS.searchQuery=$(this).val().trim();applyFilters();});
     $(document).on('click','#btn-club-close',closeDetail);
     $(document).on('click','#club-detail-overlay',function(e){if(e.target===this)closeDetail();});
 
-    // Organiser un match ici
     $(document).on('click','#btn-club-organize',function(){
       if(!CS.activeClub)return;
       const c=CS.activeClub;closeDetail();
@@ -543,8 +591,7 @@
       setTimeout(function(){
         $('#session-venue').val(c.name||'');
         $('#session-address').val(c.address||'');
-        if(sports.length===1)$('#session-sport').val(sports[0]);
-        else if(sports.length>1)$('#session-sport').val(sports[0]); // premier sport par défaut
+        if(sports.length)$('#session-sport').val(sports[0]);
         if(c.mapsUrl)    $('#session-maps-url').val(c.mapsUrl);
         if(c.url)        $('#session-booking-url').val(c.url);
         if(c.maxPlayers) $('#session-max-players').val(c.maxPlayers);
