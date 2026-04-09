@@ -38,55 +38,77 @@
 .sport-tab.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 .sport-tab:hover:not(.active) { border-color: var(--border-light); color: var(--text); }
 
-/* ── Barre distance ─────────────────────────────── */
+/* ── Barre distance (v5 — bouton Valider explicite) ─ */
 .clubs-distance-bar {
   margin-bottom: .75rem;
 }
 
-.clubs-distance-input-wrap {
+.clubs-distance-label {
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  margin-bottom: .4rem;
+}
+
+.clubs-distance-row {
   display: flex;
   align-items: center;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: .45rem .75rem;
-  gap: .5rem;
-  transition: border-color .15s;
+  gap: .4rem;
 }
-.clubs-distance-input-wrap:focus-within { border-color: var(--accent-dim); }
-
-.clubs-distance-icon { font-size: .9rem; flex-shrink: 0; }
 
 .clubs-distance-input {
   flex: 1;
-  background: none;
-  border: none;
-  outline: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   color: var(--text);
   font-size: .82rem;
-  padding: 0;
+  padding: .5rem .75rem;
+  min-width: 0;
+  transition: border-color .15s;
 }
 .clubs-distance-input::placeholder { color: var(--muted); }
+.clubs-distance-input:focus { border-color: var(--accent-dim); outline: none; }
+
+.clubs-distance-validate {
+  background: var(--accent);
+  border: none;
+  color: #000;
+  font-size: .78rem;
+  font-weight: 700;
+  padding: .5rem .9rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity .15s, transform .1s;
+}
+.clubs-distance-validate:hover  { opacity: .88; }
+.clubs-distance-validate:active { transform: scale(.97); }
+.clubs-distance-validate:disabled { opacity: .5; cursor: default; }
 
 .clubs-distance-clear {
   background: none;
-  border: none;
+  border: 1px solid var(--border);
   color: var(--muted);
-  cursor: pointer;
   font-size: .8rem;
-  padding: 0 .2rem;
-  line-height: 1;
+  padding: .45rem .65rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color .15s;
 }
-.clubs-distance-clear.hidden { display: none; }
-.clubs-distance-clear:hover { color: var(--text); }
+.clubs-distance-clear:hover { color: var(--text); border-color: var(--border-light); }
 
 .clubs-distance-status {
   display: block;
-  font-size: .7rem;
+  font-size: .72rem;
   color: var(--text-sub);
-  margin-top: .25rem;
-  padding-left: .25rem;
+  margin-top: .3rem;
   min-height: 1rem;
+  line-height: 1.4;
 }
 .clubs-distance-status.loading { color: var(--accent2); }
 .clubs-distance-status.error   { color: #f87171; }

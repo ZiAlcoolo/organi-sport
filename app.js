@@ -18,7 +18,7 @@
 // 1. CONFIGURATION
 // ══════════════════════════════════════════════════
 const CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbzLtSrX6c5saHEvzBY3VwC4w-hkgKTX_YCIK7CMhSD0fuwpNRZ46HOWV48zWGw8SB-e/exec',
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbwb09h1qwFgpCZ4RSTIcnykd9sUfYI7J56ovNCmC1UcrD5357kjvz0U7ssbAvD3GvsR/exec',
   METEO:   { DEFAULT_LAT:44.8378, DEFAULT_LON:-0.5792 },
   IDB:     { NAME:'sportsync', VERSION:5,
              STORES:['session','dispos','slots','players','clubs','sessions_index'] },

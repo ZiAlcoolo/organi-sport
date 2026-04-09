@@ -20,7 +20,7 @@
  *   Sessions     : id | sessionId | sport | status | venue | date | maxPlayers
  *                  | createdAt | ownerEmail
  *   Clubs        : id | name | sport | address | photoUrl | hours | pricing
- *                  | courts | notes | url | phone | mapsUrl | maxPlayers | active | installations
+ *                  | courts | notes | url | phone | mapsUrl | maxPlayers | active | installations | lat | lon
  *   UserSessions : email | sessionId | joinedAt
  */
 
@@ -39,7 +39,7 @@ var SCHEMAS = {
   Sessions:     ['id','sessionId','sport','status','venue','date','maxPlayers',
                  'createdAt','ownerEmail'],
   Clubs:        ['id','name','sport','address','photoUrl','hours','pricing','courts',
-                 'notes','url','phone','mapsUrl','maxPlayers','active','installations'],
+                 'notes','url','phone','mapsUrl','maxPlayers','active','installations','lat','lon'],
   UserSessions: ['email','sessionId','joinedAt'],
 };
 
@@ -212,6 +212,7 @@ function getAllClubs(){
       url:get('url'),phone:get('phone'),mapsUrl:get('mapsUrl'),
       maxPlayers:Number(get('maxPlayers'))||0,active:get('active'),
       installations:get('installations'),
+      lat:get('lat'),lon:get('lon'),
     });
   }
   return{clubs:clubs};

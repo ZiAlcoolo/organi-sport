@@ -1,14 +1,25 @@
 /**
  * ════════════════════════════════════════════════════════════════
- * SPORTSYNC — clubs.js  v4
+ * SPORTSYNC — clubs.js  v5
  * ════════════════════════════════════════════════════════════════
  *
- * v4 :
- *   - CORS FIX : géocodage via GAS proxy (UrlFetchApp) au lieu de
- *     Nominatim directement (qui bloque les navigateurs en CORS)
- *   - Géocodage batch : une seule requête GAS pour tous les clubs
- *   - FAVORIS : icône ♥ sur chaque carte, onglet dédié "Mes favoris"
- *     persisté en localStorage
+ * Stratégie de distance v5 (nouvelle architecture) :
+ *
+ *   CLUBS → colonnes `lat` et `lon` renseignées manuellement dans
+ *   le Google Sheet (ex : lat=44.8378, lon=-0.5792). Plus besoin
+ *   de géocoder les clubs → zéro requête supplémentaire.
+ *
+ *   UTILISATEUR → entre son adresse + clique "Valider" :
+ *     1. GAS proxy appelle Nominatim (1 seule requête, pas de CORS)
+ *        → retourne lat/lon de l'utilisateur
+ *     2. Haversine JS calcule distance à vol d'oiseau → affiché
+ *        immédiatement en quelques secondes
+ *     3. En arrière-plan : OSRM route API (gratuit, CORS ok direct)
+ *        → durées de trajet en voiture pour tous les clubs en 1 batch
+ *     4. Tout est caché en localStorage (adresse + coords + distances)
+ *
+ *   Interface : bouton "Valider" explicite (pas de debounce automatique)
+ *   → l'utilisateur contrôle quand le calcul est déclenché.
  */
 ;(function($){
   'use strict';
@@ -17,22 +28,28 @@
   // 1. STATE
   // ══════════════════════════════════════════════════
   const CS = {
-    clubs:          [],
-    filteredClubs:  [],
-    activeClub:     null,
-    searchQuery:    '',
-    sportFilter:    '',
-    activeTab:      'all',      // 'all' | 'favorites'
-    sortBy:         'name',     // 'name' | 'distance'
-    userCoords:     null,
-    userAddress:    '',
-    geocodeTimer:   null,
-    geocodingBatch: false,
+    clubs:         [],
+    filteredClubs: [],
+    activeClub:    null,
+    searchQuery:   '',
+    sportFilter:   '',
+    activeTab:     'all',      // 'all' | 'favorites'
+    sortBy:        'name',     // 'name' | 'distance'
+    userCoords:    null,       // { lat, lon } coords utilisateur géocodées
+    userAddress:   '',
+    distanceMode:  'haversine',// 'haversine' | 'osrm'
+    isGeocoding:   false,
   };
 
+  // localStorage keys
   const LS_NOTES_KEY   = 'sportsync_club_notes';
   const LS_ADDRESS_KEY = 'sportsync_user_address';
-  const LS_FAVS_KEY    = 'sportsync_club_favorites';  // Set d'ids
+  const LS_COORDS_KEY  = 'sportsync_user_coords';   // { lat, lon }
+  const LS_DISTS_KEY   = 'sportsync_club_distances'; // { clubId: { km, min } }
+  const LS_FAVS_KEY    = 'sportsync_club_favorites';
+
+  // OSRM public API — accepte CORS directement depuis le navigateur
+  const OSRM_URL = 'https://router.project-osrm.org/table/v1/driving/';
 
   // ══════════════════════════════════════════════════
   // 2. SPORTS
@@ -53,14 +70,12 @@
   };
 
   function sportColor(s){
-    if(!s)return SPORT_COLORS.default;
-    const k=s.toLowerCase();
+    if(!s)return SPORT_COLORS.default;const k=s.toLowerCase();
     for(const n in SPORT_COLORS)if(k.includes(n))return SPORT_COLORS[n];
     return SPORT_COLORS.default;
   }
   function sportEmoji(s){
-    if(!s)return SPORT_EMOJI.default;
-    const k=s.toLowerCase();
+    if(!s)return SPORT_EMOJI.default;const k=s.toLowerCase();
     for(const n in SPORT_EMOJI)if(k.includes(n))return SPORT_EMOJI[n];
     return SPORT_EMOJI.default;
   }
@@ -75,7 +90,6 @@
     const others=[...set].filter(s=>!SPORTS_PRIORITY.includes(s)).sort();
     return [...priority,...others];
   }
-
   function photoUrl(club){
     if(club.photoUrl&&club.photoUrl.startsWith('http'))return club.photoUrl;
     const sports=parseSports(club.sport);
@@ -94,14 +108,10 @@
     localStorage.setItem(LS_FAVS_KEY,JSON.stringify([...set]));
   }
   function isFavorite(clubId){return getFavorites().has(String(clubId));}
-
   function toggleFavorite(clubId){
-    const favs=getFavorites();
-    const id=String(clubId);
-    if(favs.has(id))favs.delete(id);
-    else            favs.add(id);
-    saveFavorites(favs);
-    return favs.has(id); // true = ajouté
+    const favs=getFavorites(),id=String(clubId);
+    if(favs.has(id))favs.delete(id);else favs.add(id);
+    saveFavorites(favs);return favs.has(id);
   }
 
   // ══════════════════════════════════════════════════
@@ -112,14 +122,13 @@
     try{const d=typeof raw==='string'&&raw.trim().startsWith('[')?JSON.parse(raw):null;
       return Array.isArray(d)?d:[];}catch(e){return[];}
   }
-
   function renderInstallations(raw){
     const inst=parseInstallations(raw);if(!inst.length)return'';
     const rows=inst.map(i=>{
       const t=Number(i.total)||0,cv=Number(i.covered)||0,op=t-cv;
       const s=cv===t?`${t} terrain${t>1?'s':''} (${cv} couvert${cv>1?'s':''})`
-               :cv===0?`${t} terrain${t>1?'s':''}`
-               :`${t} terrain${t>1?'s':''} (${cv} couvert${cv>1?'s':''}, ${op} découvert${op>1?'s':''})`;
+              :cv===0?`${t} terrain${t>1?'s':''}`
+              :`${t} terrain${t>1?'s':''} (${cv} couvert${cv>1?'s':''}, ${op} découvert${op>1?'s':''})`;
       return`<div class="install-row">
         <div class="install-sport">${sportEmoji(i.sport||'')} ${i.sport||'—'}</div>
         ${i.surface?`<div class="install-surface">${i.surface}</div>`:''}
@@ -128,7 +137,6 @@
     }).join('');
     return`<div class="installations-block"><div class="installations-title">🏗 Installations</div>${rows}</div>`;
   }
-
   function installSummary(raw){
     const inst=parseInstallations(raw);if(!inst.length)return'';
     return inst.map(i=>`${sportEmoji(i.sport||'')}×${i.total||'?'}`).join('  ');
@@ -146,160 +154,280 @@
   function getLocalNote(clubId){return getLocalNotes()[clubId]||'';}
 
   // ══════════════════════════════════════════════════
-  // 6. GÉOCODAGE — VIA GAS PROXY (CORS FIX)
-  //
-  //  AVANT (bloqué par CORS depuis le navigateur) :
-  //    fetch('https://nominatim.openstreetmap.org/search?...')
-  //
-  //  APRÈS (GAS = serveur, pas de CORS) :
-  //    gasRequest('GET', null, { action:'geocode', q: address })
-  //    gasRequest('GET', null, { action:'geocodeBatch', addresses:'a1|a2|a3' })
+  // 6. DISTANCES — CACHE localStorage
+  // ══════════════════════════════════════════════════
+  function getSavedDistances(){
+    try{return JSON.parse(localStorage.getItem(LS_DISTS_KEY)||'{}');}catch(e){return{};}
+  }
+  function saveDistances(obj){
+    localStorage.setItem(LS_DISTS_KEY,JSON.stringify(obj));
+  }
+
+  /** Charge les distances cachées sur les objets clubs en mémoire */
+  function _applyDistanceCache(){
+    const saved=getSavedDistances();
+    CS.clubs.forEach(c=>{
+      const d=saved[String(c.id)];
+      if(d){
+        c._dist    = d.km;
+        c._distMin = d.min||null;
+        c._distLabel = _buildDistLabel(d.km, d.min);
+      }
+    });
+  }
+
+  function _buildDistLabel(km, min){
+    if(km==null)return'';
+    const kmStr = km<1?`${Math.round(km*1000)} m`:`${km.toFixed(1).replace('.',',')} km`;
+    return min ? `${kmStr} · ${Math.round(min)} min` : kmStr;
+  }
+
+  // ══════════════════════════════════════════════════
+  // 7. GÉOCODAGE UTILISATEUR — Via GAS proxy (CORS fix)
+  //    Une seule requête GAS → Nominatim côté serveur
   // ══════════════════════════════════════════════════
 
-  /** Géocode l'adresse de l'utilisateur via le proxy GAS */
+  /**
+   * Géocode l'adresse de l'utilisateur via le proxy GAS.
+   * GAS appelle Nominatim avec UrlFetchApp → pas de CORS.
+   * Retourne { lat, lon } ou null.
+   */
   async function geocodeUserAddress(address){
     if(!address||address.length<4)return null;
     try{
       const r=await gasRequest('GET',null,{action:'geocode',q:address});
       if(r&&r.lat&&r.lon)return{lat:Number(r.lat),lon:Number(r.lon)};
+      console.warn('[geocode]',r);
     }catch(e){console.warn('[geocode user]',e);}
     return null;
   }
 
-  /**
-   * Géocode tous les clubs en un seul appel GAS batch.
-   * GAS appelle Nominatim séquentiellement (1 req/s) côté serveur.
-   * Les clubs déjà géocodés (_lat/_lon en mémoire) sont ignorés.
-   */
-  async function geocodeAllClubs(){
-    const needGeocode=CS.clubs.filter(c=>!c._lat||!c._lon);
-    if(!needGeocode.length)return;
-
-    // Construire la liste d'adresses (séparateur |)
-    const addresses=needGeocode.map(c=>c.address||(c.name+', France'));
-    CS.geocodingBatch=true;
-    $('#clubs-distance-status').text(`Géolocalisation de ${needGeocode.length} clubs…`).addClass('loading');
-
-    try{
-      const r=await gasRequest('GET',null,{
-        action:'geocodeBatch',
-        addresses:addresses.join('|'),
-      });
-      if(r&&r.results){
-        r.results.forEach(res=>{
-          if(res.lat&&res.lon){
-            needGeocode[res.idx]._lat=Number(res.lat);
-            needGeocode[res.idx]._lon=Number(res.lon);
-          }
-        });
-      }
-    }catch(e){
-      console.warn('[geocode batch]',e);
-      $('#clubs-distance-status').text('Erreur de géolocalisation').addClass('error').removeClass('loading');
-    }
-    CS.geocodingBatch=false;
-  }
-
-  /** Distance Haversine (km) */
+  // ══════════════════════════════════════════════════
+  // 8. HAVERSINE — distance vol d'oiseau
+  // ══════════════════════════════════════════════════
   function haversine(lat1,lon1,lat2,lon2){
     const R=6371,toRad=x=>x*Math.PI/180;
     const dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
     const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
     return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
   }
-  function distanceLabel(km){
-    return km<1?`${Math.round(km*1000)} m`:`${km.toFixed(1).replace('.',',')} km`;
-  }
 
   /**
-   * Lance le géocodage de l'adresse utilisateur et calcule les distances.
-   * Appelé après debounce 800ms sur l'input.
+   * Calcule les distances Haversine pour tous les clubs
+   * qui ont des coords `lat`/`lon` dans le Sheet.
+   * Instantané — aucune requête réseau.
    */
-  async function updateDistances(){
-    const addr=$('#clubs-distance-input').val().trim();
-    if(!addr){
-      CS.userCoords=null;CS.userAddress='';
-      CS.clubs.forEach(c=>{c._dist=null;c._distLabel='';});
-      localStorage.removeItem(LS_ADDRESS_KEY);
-      $('#clubs-distance-status').text('');
-      applyFilters();return;
-    }
-    CS.userAddress=addr;
-    $('#clubs-distance-status').text('Géolocalisation de votre adresse…').addClass('loading').removeClass('error');
-
-    // 1. Géocoder l'adresse utilisateur
-    const userCoords=await geocodeUserAddress(addr);
-    if(!userCoords){
-      $('#clubs-distance-status').text('Adresse introuvable').removeClass('loading').addClass('error');
-      return;
-    }
-    CS.userCoords=userCoords;
-    localStorage.setItem(LS_ADDRESS_KEY,addr);
-    $('#clubs-distance-status').text('Géolocalisation des clubs…');
-
-    // 2. Géocoder les clubs non encore géocodés (batch)
-    await geocodeAllClubs();
-
-    // 3. Calculer les distances
-    let geocoded=0;
+  function computeHaversineDistances(userLat, userLon){
+    const cache={};
+    let count=0;
     CS.clubs.forEach(c=>{
-      if(c._lat&&c._lon){
-        c._dist=haversine(userCoords.lat,userCoords.lon,c._lat,c._lon);
-        c._distLabel=distanceLabel(c._dist);
-        geocoded++;
-      }else{c._dist=null;c._distLabel='';}
+      // lat/lon proviennent des colonnes du Sheet (renseignées manuellement)
+      const cLat=parseFloat(c.lat||c._lat);
+      const cLon=parseFloat(c.lon||c._lon);
+      if(!isNaN(cLat)&&!isNaN(cLon)){
+        const km=haversine(userLat,userLon,cLat,cLon);
+        c._dist    = km;
+        c._distMin = null; // sera mis à jour par OSRM
+        c._distLabel = _buildDistLabel(km, null);
+        cache[String(c.id)]={km,min:null};
+        count++;
+      }else{
+        c._dist=null;c._distMin=null;c._distLabel='';
+      }
+    });
+    // Sauvegarder dans le cache (les durées OSRM viendront après)
+    const existing=getSavedDistances();
+    Object.assign(existing,cache);
+    saveDistances(existing);
+    return count;
+  }
+
+  // ══════════════════════════════════════════════════
+  // 9. OSRM — durées de trajet en voiture (arrière-plan)
+  //    API publique gratuite, accepte CORS directement depuis le nav.
+  //    Format : /table/v1/driving/lon,lat;lon,lat;...
+  //    ?sources=0&annotations=duration,distance
+  // ══════════════════════════════════════════════════
+
+  /**
+   * Récupère les durées de trajet depuis l'adresse utilisateur
+   * vers tous les clubs qui ont des coords (lat/lon).
+   * Appel unique batch — tous les clubs en une seule requête.
+   * @param {number} userLat
+   * @param {number} userLon
+   */
+  async function fetchOSRMDurations(userLat, userLon){
+    const clubsWithCoords=CS.clubs.filter(c=>{
+      const lat=parseFloat(c.lat||c._lat),lon=parseFloat(c.lon||c._lon);
+      return !isNaN(lat)&&!isNaN(lon);
+    });
+    if(!clubsWithCoords.length)return;
+
+    // Construire la chaîne de coordonnées : utilisateur en index 0,
+    // puis tous les clubs. Format OSRM : lon,lat (inversé vs standard)
+    const coords=[`${userLon},${userLat}`];
+    clubsWithCoords.forEach(c=>{
+      const lat=parseFloat(c.lat||c._lat),lon=parseFloat(c.lon||c._lon);
+      coords.push(`${lon},${lat}`);
     });
 
-    $('#clubs-distance-status').text(`${geocoded} clubs localisés ✓`).removeClass('loading').removeClass('error');
+    const url=`${OSRM_URL}${coords.join(';')}?sources=0&annotations=duration,distance`;
 
-    // Basculer auto sur le tri par distance
+    try{
+      const resp=await fetch(url,{method:'GET',headers:{'Accept':'application/json'}});
+      if(!resp.ok)throw new Error(`OSRM HTTP ${resp.status}`);
+      const data=await resp.json();
+      if(data.code!=='Ok')throw new Error('OSRM code: '+data.code);
+
+      const durations = data.durations[0]; // tableau des durées depuis source 0
+      const distances = data.distances[0]; // tableau des distances depuis source 0
+      const cache = getSavedDistances();
+
+      clubsWithCoords.forEach((c,i)=>{
+        // i+1 car index 0 = l'utilisateur lui-même
+        const durationSec = durations[i+1];
+        const distanceM   = distances[i+1];
+        if(durationSec!=null && distanceM!=null){
+          const km  = distanceM/1000;
+          const min = durationSec/60;
+          c._dist    = km;
+          c._distMin = min;
+          c._distLabel = _buildDistLabel(km, min);
+          cache[String(c.id)] = {km, min};
+        }
+      });
+
+      saveDistances(cache);
+      console.log(`[OSRM] ${clubsWithCoords.length} clubs mis à jour`);
+
+      // Rafraîchir l'affichage avec les durées
+      const $status=$('#clubs-distance-status');
+      $status.text(`${clubsWithCoords.length} clubs · trajet voiture calculé ✓`).removeClass('loading').removeClass('error');
+      applyFilters(); // re-render avec les nouvelles infos
+    }catch(e){
+      console.warn('[OSRM]',e.message||e);
+      // OSRM a échoué mais les distances Haversine sont déjà affichées → pas de message d'erreur bloquant
+      const $status=$('#clubs-distance-status');
+      $status.text($status.text().replace('…','') + ' (trajet voiture indisponible)');
+    }
+  }
+
+  // ══════════════════════════════════════════════════
+  // 10. POINT D'ENTRÉE — "Valider" adresse
+  // ══════════════════════════════════════════════════
+
+  /**
+   * Déclenché par le clic sur le bouton "Valider".
+   * Séquence complète :
+   *   1. Géocode l'adresse utilisateur via GAS proxy (1 requête)
+   *   2. Haversine instantané sur coords des clubs (0 requête)
+   *   3. OSRM en arrière-plan pour les durées voiture (1 requête)
+   */
+  async function onValidateAddress(){
+    const addr=$('#clubs-distance-input').val().trim();
+    if(!addr){
+      _clearDistances();return;
+    }
+    if(CS.isGeocoding)return;
+    CS.isGeocoding=true;
+    const $btn=$('#clubs-distance-validate');
+    $btn.prop('disabled',true).text('…');
+    _setDistStatus('Géolocalisation de votre adresse…','loading');
+
+    // ── Étape 1 : Géocoder l'adresse utilisateur ──
+    const coords=await geocodeUserAddress(addr);
+    if(!coords){
+      _setDistStatus('Adresse introuvable. Essayez avec la ville ou le code postal.','error');
+      $btn.prop('disabled',false).text('Valider');
+      CS.isGeocoding=false;return;
+    }
+    CS.userCoords=coords;
+    CS.userAddress=addr;
+    // Sauvegarder en localStorage
+    localStorage.setItem(LS_ADDRESS_KEY,addr);
+    localStorage.setItem(LS_COORDS_KEY,JSON.stringify(coords));
+
+    // ── Étape 2 : Haversine (immédiat) ──
+    const count=computeHaversineDistances(coords.lat,coords.lon);
+    if(!count){
+      _setDistStatus('Aucun club avec coordonnées GPS. Ajoutez les colonnes lat/lon dans le Sheet.','error');
+      $btn.prop('disabled',false).text('Valider');
+      CS.isGeocoding=false;return;
+    }
+    _setDistStatus(`${count} clubs localisés · calcul trajet voiture…`,'loading');
     CS.sortBy='distance';
+    applyFilters(); // afficher distances à vol d'oiseau immédiatement
+
+    $btn.prop('disabled',false).text('Valider');
+    CS.isGeocoding=false;
+
+    // ── Étape 3 : OSRM en arrière-plan (non bloquant) ──
+    fetchOSRMDurations(coords.lat,coords.lon).catch(e=>console.warn('[OSRM bg]',e));
+  }
+
+  function _clearDistances(){
+    CS.userCoords=null;CS.userAddress='';
+    CS.clubs.forEach(c=>{c._dist=null;c._distMin=null;c._distLabel='';});
+    localStorage.removeItem(LS_ADDRESS_KEY);
+    localStorage.removeItem(LS_COORDS_KEY);
+    localStorage.removeItem(LS_DISTS_KEY);
+    _setDistStatus('','');
+    CS.sortBy='name';
     applyFilters();
   }
 
+  function _setDistStatus(msg,cls){
+    const $s=$('#clubs-distance-status');
+    if(!$s.length)return;
+    $s.text(msg).attr('class','clubs-distance-status'+(cls?' '+cls:''));
+  }
+
+  /** Restaure les distances depuis le cache au démarrage */
+  function _restoreFromCache(){
+    const savedAddr=localStorage.getItem(LS_ADDRESS_KEY)||'';
+    const savedCoords=localStorage.getItem(LS_COORDS_KEY);
+    if(!savedAddr)return;
+
+    CS.userAddress=savedAddr;
+    if(savedCoords){
+      try{CS.userCoords=JSON.parse(savedCoords);}catch(e){}
+    }
+    // Appliquer le cache de distances sur les objets clubs
+    _applyDistanceCache();
+  }
+
   // ══════════════════════════════════════════════════
-  // 7. CHARGEMENT & FILTRAGE
+  // 11. CHARGEMENT & FILTRAGE
   // ══════════════════════════════════════════════════
   async function loadClubs(force){
     if(!force&&window.state&&window.state.clubs&&window.state.clubs.length){
-      CS.clubs=window.state.clubs;_restoreDistances();applyFilters();return;
+      CS.clubs=window.state.clubs;
+      _restoreFromCache();
+      applyFilters();return;
     }
     try{
       const r=await(typeof gasGetAllClubs==='function'?gasGetAllClubs():Promise.reject('no fn'));
       CS.clubs=r.clubs||[];
       if(window.state)window.state.clubs=CS.clubs;
     }catch(e){console.warn('[clubs]',e);CS.clubs=(window.state&&window.state.clubs)||[];}
-    _restoreDistances();
+    _restoreFromCache();
     applyFilters();
-  }
-
-  function _restoreDistances(){
-    const savedAddr=localStorage.getItem(LS_ADDRESS_KEY)||'';
-    if(savedAddr){
-      $('#clubs-distance-input').val(savedAddr);
-      // Géocodage silencieux en arrière-plan
-      setTimeout(updateDistances,600);
-    }
   }
 
   function applyFilters(){
     const favs=getFavorites();
     let clubs=[...CS.clubs];
-
     // Onglet favoris
     if(CS.activeTab==='favorites')clubs=clubs.filter(c=>favs.has(String(c.id)));
-
     // Filtre texte
     const q=CS.searchQuery.toLowerCase();
     if(q)clubs=clubs.filter(c=>
       c.name.toLowerCase().includes(q)||
       (c.address||'').toLowerCase().includes(q)||
       parseSports(c.sport).some(s=>s.toLowerCase().includes(q)));
-
     // Filtre sport
     const sp=CS.sportFilter;
     if(sp)clubs=clubs.filter(c=>parseSports(c.sport).some(s=>s.toLowerCase()===sp.toLowerCase()));
-
     // Tri
     if(CS.sortBy==='distance'&&CS.userCoords){
       clubs.sort((a,b)=>(a._dist!=null?a._dist:Infinity)-(b._dist!=null?b._dist:Infinity));
@@ -311,7 +439,7 @@
   }
 
   // ══════════════════════════════════════════════════
-  // 8. RENDU LISTE
+  // 12. RENDU LISTE
   // ══════════════════════════════════════════════════
   function render(){loadClubs();}
 
@@ -320,15 +448,12 @@
     const favs=getFavorites();
     const favCount=favs.size;
     const allSports=getAllSportsFromClubs(CS.clubs);
+    const savedAddr=CS.userAddress||localStorage.getItem(LS_ADDRESS_KEY)||'';
 
-    // ── Onglets Tous / Favoris ──
+    // ── Onglets ──
     const tabs=`<div class="clubs-tabs">
-      <button class="clubs-tab ${CS.activeTab==='all'?'active':''}" data-tab="all">
-        Tous <span class="clubs-tab-count">${CS.clubs.length}</span>
-      </button>
-      <button class="clubs-tab ${CS.activeTab==='favorites'?'active':''}" data-tab="favorites">
-        ♥ Favoris <span class="clubs-tab-count">${favCount}</span>
-      </button>
+      <button class="clubs-tab ${CS.activeTab==='all'?'active':''}" data-tab="all">Tous <span class="clubs-tab-count">${CS.clubs.length}</span></button>
+      <button class="clubs-tab ${CS.activeTab==='favorites'?'active':''}" data-tab="favorites">♥ Favoris <span class="clubs-tab-count">${favCount}</span></button>
     </div>`;
 
     // ── Filtres sport ──
@@ -337,26 +462,29 @@
       ${allSports.map(s=>`<button class="sport-tab ${CS.sportFilter.toLowerCase()===s.toLowerCase()?'active':''}" data-sport="${s}">${sportEmoji(s)} ${s}</button>`).join('')}
     </div>`;
 
-    // ── Barre distance ──
-    const distanceBar=`<div class="clubs-distance-bar">
-      <div class="clubs-distance-input-wrap">
-        <span class="clubs-distance-icon">📍</span>
+    // ── Barre adresse ──
+    // Bouton "Valider" explicite — pas de debounce automatique
+    const distBar=`<div class="clubs-distance-bar">
+      <div class="clubs-distance-label">📍 Calculer les distances depuis votre position</div>
+      <div class="clubs-distance-row">
         <input type="text" id="clubs-distance-input" class="clubs-distance-input"
-          value="${CS.userAddress||localStorage.getItem(LS_ADDRESS_KEY)||''}"
-          placeholder="Votre adresse pour trier par proximité…" autocomplete="street-address" />
-        <button class="clubs-distance-clear ${CS.userCoords?'':'hidden'}" id="clubs-distance-clear" title="Effacer">✕</button>
+          value="${savedAddr.replace(/"/g,'&quot;')}"
+          placeholder="ex: 12 rue des Sports, Bordeaux"
+          autocomplete="street-address" />
+        <button class="clubs-distance-validate" id="clubs-distance-validate">Valider</button>
+        ${CS.userCoords?`<button class="clubs-distance-clear" id="clubs-distance-clear" title="Effacer">✕</button>`:''}
       </div>
-      <span class="clubs-distance-status" id="clubs-distance-status"></span>
+      <div class="clubs-distance-status" id="clubs-distance-status">${CS.userCoords?`${CS.clubs.filter(c=>c._dist!=null).length} clubs localisés ✓`:''}</div>
     </div>`;
 
-    // ── Boutons tri ──
+    // ── Tri (visible seulement si coords disponibles) ──
     const sortRow=CS.userCoords?`<div class="clubs-sort-row">
       <button class="clubs-sort-btn ${CS.sortBy==='name'?'active':''}" data-sort="name">🔤 Nom</button>
       <button class="clubs-sort-btn ${CS.sortBy==='distance'?'active':''}" data-sort="distance">📍 Distance</button>
     </div>`:'';
 
     if(!CS.filteredClubs.length){
-      $c.html(tabs+sportTabs+distanceBar+sortRow+`<div class="clubs-empty">
+      $c.html(tabs+sportTabs+distBar+sortRow+`<div class="clubs-empty">
         <div class="clubs-empty-icon">${CS.activeTab==='favorites'?'♥':'🏟️'}</div>
         <p>${CS.activeTab==='favorites'?'Aucun favori enregistré.':CS.searchQuery||CS.sportFilter?'Aucun club trouvé.':'Aucun club enregistré.'}</p>
         ${CS.activeTab==='favorites'?'<p class="clubs-empty-sub">Cliquez sur ♥ sur une carte pour ajouter un club à vos favoris.</p>':''}
@@ -369,93 +497,81 @@
       const img=photoUrl(c);
       const instSum=installSummary(c.installations);
       const isFav=favs.has(String(c.id));
-
       const sportPills=sports.map(s=>
         `<span class="club-sport-pill" style="background:${sportColor(s)}22;border-color:${sportColor(s)}44;color:${sportColor(s)}">${sportEmoji(s)} ${s}</span>`
       ).join('');
-
+      const distBadge=c._distLabel?`<div class="club-card-dist-badge">
+        ${c._distMin?'🚗':'📍'} ${c._distLabel}
+      </div>`:'';
       return `<div class="club-card" data-club-id="${c.id}">
         <div class="club-card-photo" style="background-image:url('${img}')">
           <div class="club-card-sports-row">${sportPills}</div>
-          ${c._distLabel?`<div class="club-card-dist-badge">📍 ${c._distLabel}</div>`:''}
-          <button class="club-fav-btn ${isFav?'active':''}" data-club-id="${c.id}" title="${isFav?'Retirer des favoris':'Ajouter aux favoris'}">
-            ${isFav?'♥':'♡'}
-          </button>
+          ${distBadge}
+          <button class="club-fav-btn ${isFav?'active':''}" data-club-id="${c.id}" title="${isFav?'Retirer des favoris':'Ajouter aux favoris'}">${isFav?'♥':'♡'}</button>
         </div>
         <div class="club-card-body">
-          <div class="club-card-name">${c.name} ${isFav?'<span class="club-fav-indicator" title="Favori">♥</span>':''}</div>
+          <div class="club-card-name">${c.name}${isFav?' <span class="club-fav-indicator">♥</span>':''}</div>
           ${c.address?`<div class="club-card-addr">📍 ${c.address}</div>`:''}
           <div class="club-card-badges">
             ${c.pricing?`<span class="club-badge">💶 ${c.pricing}</span>`:''}
             ${instSum?`<span class="club-badge club-badge--install">${instSum}</span>`:''}
-            ${c._distLabel?`<span class="club-badge club-badge--dist">📍 ${c._distLabel}</span>`:''}
+            ${c._distLabel?`<span class="club-badge club-badge--dist">${c._distMin?'🚗':'📍'} ${c._distLabel}</span>`:''}
           </div>
         </div>
       </div>`;
     }).join('');
 
-    $c.html(tabs+sportTabs+distanceBar+sortRow+`<div class="clubs-grid">${cards}</div>`);
+    $c.html(tabs+sportTabs+distBar+sortRow+`<div class="clubs-grid">${cards}</div>`);
     bindListEvents($c);
   }
 
   function bindListEvents($c){
-    // Onglets
     $c.off('click','.clubs-tab').on('click','.clubs-tab',function(){
       CS.activeTab=$(this).data('tab');applyFilters();
     });
-    // Filtres sport
     $c.off('click','.sport-tab').on('click','.sport-tab',function(){
       CS.sportFilter=$(this).data('sport');applyFilters();
     });
-    // Tri
     $c.off('click','.clubs-sort-btn').on('click','.clubs-sort-btn',function(){
       CS.sortBy=$(this).data('sort');applyFilters();
     });
-    // Favori (stopper la propagation pour ne pas ouvrir la fiche)
+    // Bouton Valider
+    $c.off('click','#clubs-distance-validate').on('click','#clubs-distance-validate',function(){
+      onValidateAddress();
+    });
+    // Enter dans l'input
+    $c.off('keydown','#clubs-distance-input').on('keydown','#clubs-distance-input',function(e){
+      if(e.key==='Enter')onValidateAddress();
+    });
+    // Effacer
+    $c.off('click','#clubs-distance-clear').on('click','#clubs-distance-clear',function(){
+      $c.find('#clubs-distance-input').val('');
+      _clearDistances();
+    });
+    // Favori
     $c.off('click','.club-fav-btn').on('click','.club-fav-btn',function(e){
       e.stopPropagation();
       const id=$(this).data('club-id');
       const added=toggleFavorite(id);
-      const icon=added?'♥':'♡';
-      const $btn=$(this);
-      $btn.toggleClass('active',added).text(icon).attr('title',added?'Retirer des favoris':'Ajouter aux favoris');
-      // Mettre à jour l'indicateur dans le nom
-      const $card=$btn.closest('.club-card');
-      const $name=$card.find('.club-card-name');
-      $name.find('.club-fav-indicator').remove();
-      if(added)$name.append('<span class="club-fav-indicator" title="Favori">♥</span>');
-      // Si on est dans l'onglet favoris et qu'on retire, masquer la carte
+      $(this).toggleClass('active',added).text(added?'♥':'♡').attr('title',added?'Retirer des favoris':'Ajouter aux favoris');
+      const $card=$(this).closest('.club-card');
+      $card.find('.club-card-name .club-fav-indicator').remove();
+      if(added)$card.find('.club-card-name').append('<span class="club-fav-indicator">♥</span>');
       if(CS.activeTab==='favorites'&&!added){
-        $card.addClass('club-card--removing');
-        setTimeout(()=>applyFilters(),350);
+        $card.addClass('club-card--removing');setTimeout(()=>applyFilters(),350);
       }
       typeof showToast==='function'&&showToast(added?'Ajouté aux favoris ♥':'Retiré des favoris','');
     });
-    // Clic carte → fiche
+    // Clic carte
     $c.off('click','.club-card').on('click','.club-card',function(){
       const id=String($(this).data('club-id'));
       const club=CS.clubs.find(c=>String(c.id)===id);
       if(club)openDetail(club);
     });
-    // Distance input
-    $c.find('#clubs-distance-input').off('input').on('input',function(){
-      clearTimeout(CS.geocodeTimer);
-      CS.geocodeTimer=setTimeout(updateDistances,800);
-    });
-    // Clear distance
-    $c.find('#clubs-distance-clear').off('click').on('click',function(){
-      $c.find('#clubs-distance-input').val('');
-      CS.userCoords=null;CS.userAddress='';
-      CS.clubs.forEach(c=>{c._dist=null;c._distLabel='';});
-      localStorage.removeItem(LS_ADDRESS_KEY);
-      $('#clubs-distance-status').text('');
-      CS.sortBy='name';
-      applyFilters();
-    });
   }
 
   // ══════════════════════════════════════════════════
-  // 9. FICHE DÉTAIL
+  // 13. FICHE DÉTAIL
   // ══════════════════════════════════════════════════
   function openDetail(club){
     CS.activeClub=club;
@@ -465,39 +581,38 @@
     const localNote=getLocalNote(club.id);
     const installHTML=renderInstallations(club.installations);
     const isFav=isFavorite(club.id);
-
     const sportPills=sports.map(s=>
       `<span class="detail-sport-pill" style="background:${sportColor(s)}22;border-color:${sportColor(s)}44;color:${sportColor(s)}">${sportEmoji(s)} ${s}</span>`
     ).join('');
+
+    // Label distance enrichi
+    const distRow=club._distLabel?`<div class="club-detail-row">
+      ${club._distMin?'🚗':'📍'}
+      <span>${club._distLabel}${club._distMin?` de votre adresse (voiture)`:`de votre adresse (à vol d'oiseau)`}</span>
+    </div>`:'';
 
     $overlay.find('#club-detail-content').html(`
       <div class="club-detail-photo" style="background-image:url('${img}')">
         <div class="club-detail-top-bar">
           <button class="club-detail-close" id="btn-club-close">✕</button>
-          <button class="club-detail-fav-btn ${isFav?'active':''}" id="btn-club-fav" data-club-id="${club.id}" title="${isFav?'Retirer des favoris':'Ajouter aux favoris'}">
-            ${isFav?'♥':'♡'}
-          </button>
+          <button class="club-detail-fav-btn ${isFav?'active':''}" id="btn-club-fav" data-club-id="${club.id}" title="${isFav?'Retirer':'Ajouter aux favoris'}">${isFav?'♥':'♡'}</button>
         </div>
         <div class="club-detail-sports">${sportPills}</div>
-        ${club._distLabel?`<div class="club-detail-dist">📍 ${club._distLabel}</div>`:''}
+        ${club._distLabel?`<div class="club-detail-dist">${club._distMin?'🚗':'📍'} ${club._distLabel}</div>`:''}
       </div>
       <div class="club-detail-body">
         <div class="club-detail-name-row">
           <h2 class="club-detail-name">${club.name}</h2>
           ${isFav?'<span class="club-fav-indicator club-fav-indicator--lg">♥</span>':''}
         </div>
-
         ${club.address?`<div class="club-detail-row">📍 <span>${club.address}</span></div>`:''}
-        ${club._distLabel?`<div class="club-detail-row">🛣 <span>${club._distLabel} de votre adresse</span></div>`:''}
+        ${distRow}
         ${club.phone?`<div class="club-detail-row">📞 <span><a href="tel:${club.phone}" style="color:var(--accent)">${club.phone}</a></span></div>`:''}
         ${club.hours?`<div class="club-detail-row">🕐 <div class="hours-grid">${formatHours(club.hours)}</div></div>`:''}
         ${club.pricing?`<div class="club-detail-row">💶 <span>${club.pricing}</span></div>`:''}
         ${club.maxPlayers?`<div class="club-detail-row">👥 <span>Max ${club.maxPlayers} joueurs</span></div>`:''}
-
         ${installHTML}
-
         ${club.notes?`<div class="club-detail-notes">${club.notes}</div>`:''}
-
         <div class="local-notes-section">
           <div class="local-notes-header">
             <span class="local-notes-title">📝 Mes notes personnelles</span>
@@ -506,7 +621,6 @@
           <textarea class="local-notes-textarea" id="local-notes-input"
             placeholder="Stationnement, contact, préférences…" rows="3">${localNote}</textarea>
         </div>
-
         <div class="club-detail-actions">
           ${club.mapsUrl?`<a href="${club.mapsUrl}" target="_blank" class="btn btn-outline btn-sm">📍 Google Maps</a>`:''}
           ${club.url?`<a href="${club.url}" target="_blank" class="btn btn-outline btn-sm">🌐 Site du club</a>`:''}
@@ -514,18 +628,16 @@
           <button class="btn btn-primary" id="btn-club-organize">🏅 Organiser un match ici</button>
         </div>
       </div>`);
-
     $overlay.removeClass('hidden');
 
-    // Favori depuis la fiche
+    // Favori
     $overlay.find('#btn-club-fav').off('click').on('click',function(){
-      const id=$(this).data('club-id');
-      const added=toggleFavorite(id);
-      $(this).toggleClass('active',added).text(added?'♥':'♡').attr('title',added?'Retirer des favoris':'Ajouter aux favoris');
+      const id=$(this).data('club-id'),added=toggleFavorite(id);
+      $(this).toggleClass('active',added).text(added?'♥':'♡');
       $overlay.find('.club-fav-indicator--lg').remove();
       if(added)$overlay.find('.club-detail-name-row').append('<span class="club-fav-indicator club-fav-indicator--lg">♥</span>');
       typeof showToast==='function'&&showToast(added?'Ajouté aux favoris ♥':'Retiré des favoris','');
-      // Mettre à jour la carte dans la liste si visible
+      // Sync carte dans la liste
       const $card=$(`.club-card[data-club-id="${id}"]`);
       if($card.length){
         $card.find('.club-fav-btn').toggleClass('active',added).text(added?'♥':'♡');
@@ -537,8 +649,7 @@
     // Auto-save notes
     let noteTimer=null;
     $overlay.find('#local-notes-input').off('input').on('input',function(){
-      clearTimeout(noteTimer);
-      const val=$(this).val();
+      clearTimeout(noteTimer);const val=$(this).val();
       noteTimer=setTimeout(()=>{saveLocalNote(club.id,val);_showNoteSaved($overlay);},600);
     });
   }
@@ -550,7 +661,7 @@
   }
 
   // ══════════════════════════════════════════════════
-  // 10. UTILITAIRES
+  // 14. UTILITAIRES
   // ══════════════════════════════════════════════════
   function formatHours(raw){
     if(!raw)return'';
@@ -566,10 +677,12 @@
   }
 
   // ══════════════════════════════════════════════════
-  // 11. ACTIONS
+  // 15. ACTIONS
   // ══════════════════════════════════════════════════
   function openById(id){
-    if(!CS.clubs.length){loadClubs().then(()=>{const c=CS.clubs.find(c=>String(c.id)===String(id));if(c)openDetail(c);});return;}
+    if(!CS.clubs.length){
+      loadClubs().then(()=>{const c=CS.clubs.find(c=>String(c.id)===String(id));if(c)openDetail(c);});return;
+    }
     const club=CS.clubs.find(c=>String(c.id)===String(id));
     if(club)openDetail(club);
     else typeof showToast==='function'&&showToast('Club introuvable','error');
@@ -581,7 +694,6 @@
     $(document).on('input','#clubs-search',function(){CS.searchQuery=$(this).val().trim();applyFilters();});
     $(document).on('click','#btn-club-close',closeDetail);
     $(document).on('click','#club-detail-overlay',function(e){if(e.target===this)closeDetail();});
-
     $(document).on('click','#btn-club-organize',function(){
       if(!CS.activeClub)return;
       const c=CS.activeClub;closeDetail();
@@ -589,8 +701,7 @@
       if(typeof goToStep==='function')goToStep(3);
       const sports=parseSports(c.sport);
       setTimeout(function(){
-        $('#session-venue').val(c.name||'');
-        $('#session-address').val(c.address||'');
+        $('#session-venue').val(c.name||'');$('#session-address').val(c.address||'');
         if(sports.length)$('#session-sport').val(sports[0]);
         if(c.mapsUrl)    $('#session-maps-url').val(c.mapsUrl);
         if(c.url)        $('#session-booking-url').val(c.url);
@@ -605,7 +716,6 @@
   function init(){bindEvents();loadClubs();}
 
   window.SportSyncClubs={init,render,loadClubs,openById};
-
   $(document).ready(function(){
     setTimeout(function(){if($('#view-clubs').length)init();},400);
   });
