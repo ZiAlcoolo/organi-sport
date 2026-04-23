@@ -497,8 +497,8 @@
 
     // ── Tri (visible seulement si coords disponibles) ──
     const sortRow = CS.userCoords ? `<div class="clubs-sort-row">
-      <button class="clubs-sort-btn ${CS.sortBy === 'name' ? 'active' : ''}" data-sort="name">🔤 Nom</button>
-      <button class="clubs-sort-btn ${CS.sortBy === 'distance' ? 'active' : ''}" data-sort="distance">📍 Distance</button>
+      <button class="clubs-sort-btn ${CS.sortBy === 'name' ? 'active' : ''}" data-sort="name">Nom</button>
+      <button class="clubs-sort-btn ${CS.sortBy === 'distance' ? 'active' : ''}" data-sort="distance">Distance</button>
     </div>`: '';
 
     if (!CS.filteredClubs.length) {

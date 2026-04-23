@@ -306,7 +306,8 @@
 .club-detail-dist {
   position: absolute;
   top: .75rem;
-  left: .75rem;
+  left: 50%;
+  transform: TranslateX(-50%);
   font-size: .7rem;
   font-weight: 700;
   background: rgba(0,0,0,.55);
