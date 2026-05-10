@@ -53,7 +53,7 @@
     {
       icon: '⏰',
       title: 'Proposer des créneaux',
-      content: 'Dans l\'étape "Créneaux", collez une annonce de réservation (texte copié depuis un site de terrain) dans le Smart Parser — l\'IA locale extrait automatiquement les dates, horaires et prix.',
+      content: 'Dans l\'étape "Créneaux", collez une annonce de réservation (texte copié depuis un site de terrain) dans le Smart Parser — l\'IA locale extrait automatiquement les dates, horaires et prix. Vous avez également la possibilité d\'entrer manuellement les créneaux un par un.',
       tip: 'Votez 👍 sur un créneau pour indiquer votre préférence. Un seul vote par joueur.',
     },
     {
@@ -77,7 +77,7 @@
     {
       icon: '⚙️',
       title: 'Profil & synchronisation',
-      content: 'Configurez votre prénom (affiché sur la grille) et votre email. Les données sont synchronisées avec un Google Sheet personnel — votre source de vérité partagée.',
+      content: 'Configurez votre prénom (affiché sur la grille) et votre email. Ce paramétrage est important pour pouvoir garder vos données à travers vos différents appareils. Renseignez-les immédiatement dès la première ouverture de l\'application. (Ces données ne sont utilisées que pour associer vos données de match à votre profil).',
       tip: 'Le bouton "Actualiser" en bas de chaque page force une synchronisation manuelle.',
     },
   ];
@@ -89,7 +89,7 @@
     version: APP_VERSION,
     title: '✨ Nouveautés v1.3',
     items: [
-      { icon: '🏟', text: 'Annuaire clubs enrichi : multi-sports, installations détaillées (style Ten\'up), horaires JSON.' },
+      { icon: '🏟', text: 'Annuaire clubs enrichi : multi-sports, installations détaillées, ...' },
       { icon: '📍', text: 'Calcul de distance depuis votre adresse — distances à vol d\'oiseau + durées de trajet voiture (OSRM).' },
       { icon: '♥',  text: 'Favoris : marquez vos clubs préférés et retrouvez-les dans un onglet dédié.' },
       { icon: '📝', text: 'Notes personnelles locales sur chaque fiche club (sauvegardées sur votre appareil).' },

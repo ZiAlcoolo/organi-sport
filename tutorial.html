@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0f1117" />
+    <meta name="description" content="Guide d'utilisation SportSync — Organisez vos sessions de sport entre amis" />
+    <title>SportSync — Guide d'utilisation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&amp;family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&amp;display=swap"
+        rel="stylesheet" />
+
+    <style>
+        /* ── Reset &amp; tokens ─────────────────────────────── */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #0f1117;
+            --bg-card: #161820;
+            --bg-card-alt: #1c1e28;
+            --border: rgba(255, 255, 255, .08);
+            --border-l: rgba(255, 255, 255, .15);
+            --text: #e8eaf0;
+            --text-sub: #9299b0;
+            --muted: #5c6280;
+            --accent: #4ade80;
+            --accent-dim: rgba(74, 222, 128, .12);
+            --accent2: #f59e0b;
+            --accent3: #38bdf8;
+            --radius: 14px;
+            --radius-sm: 8px;
+            --font-disp: 'Syne', system-ui, sans-serif;
+            --font-body: 'DM Sans', system-ui, sans-serif;
+            --max-w: 720px;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-body);
+            font-size: 15px;
+            line-height: 1.65;
+            min-height: 100dvh;
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        strong {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        em {
+            font-style: italic;
+            color: var(--text-sub);
+        }
+
+        /* ── Layout ─────────────────────────────────────── */
+        .page-wrap {
+            max-width: var(--max-w);
+            margin: 0 auto;
+            padding: 0 1.25rem 6rem;
+        }
+
+        /* ── Header ─────────────────────────────────────── */
+        .site-header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(15, 17, 23, .92);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border-bottom: 1px solid var(--border);
+            padding: .75rem 1.25rem;
+        }
+
+        .site-header-inner {
+            max-width: var(--max-w);
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .logo {
+            font-family: var(--font-disp);
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+        }
+
+        .logo-accent {
+            color: var(--accent);
+        }
+
+        .header-badge {
+            font-size: .68rem;
+            font-weight: 700;
+            background: var(--accent-dim);
+            border: 1px solid rgba(74, 222, 128, .25);
+            color: var(--accent);
+            border-radius: 100px;
+            padding: .2rem .65rem;
+            white-space: nowrap;
+        }
+
+        .btn-try {
+            background: var(--accent);
+            color: #000;
+            font-weight: 700;
+            font-size: .78rem;
+            padding: .4rem .9rem;
+            border-radius: 100px;
+            text-decoration: none;
+            white-space: nowrap;
+            transition: opacity .15s;
+        }
+
+        .btn-try:hover {
+            opacity: .85;
+            text-decoration: none;
+        }
+
+        /* ── Hero ───────────────────────────────────────── */
+        .hero {
+            text-align: center;
+            padding: 4rem 0 2.5rem;
+        }
+
+        .hero-emoji {
+            font-size: 3.5rem;
+            display: block;
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 0 24px rgba(74, 222, 128, .3));
+        }
+
+        .hero-title {
+            font-family: var(--font-disp);
+            font-size: clamp(1.75rem, 5vw, 2.5rem);
+            font-weight: 800;
+            color: var(--text);
+            line-height: 1.15;
+            margin-bottom: .75rem;
+        }
+
+        .hero-title span {
+            color: var(--accent);
+        }
+
+        .hero-sub {
+            font-size: 1rem;
+            color: var(--text-sub);
+            max-width: 480px;
+            margin: 0 auto 2rem;
+            line-height: 1.7;
+        }
+
+        .hero-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            background: var(--accent);
+            color: #000;
+            font-weight: 700;
+            font-size: .9rem;
+            padding: .7rem 1.5rem;
+            border-radius: 100px;
+            text-decoration: none;
+            box-shadow: 0 4px 20px rgba(74, 222, 128, .3);
+            transition: opacity .15s, transform .12s;
+        }
+
+        .hero-cta:hover {
+            opacity: .88;
+            transform: translateY(-1px);
+            text-decoration: none;
+        }
+
+        /* ── Quick features strip ───────────────────────── */
+        .features-strip {
+            display: flex;
+            gap: .75rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            padding: 1.5rem 0 2.5rem;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 3rem;
+        }
+
+        .feat-pill {
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            padding: .4rem .9rem;
+            font-size: .8rem;
+            color: var(--text-sub);
+            font-weight: 500;
+        }
+
+        .feat-pill span {
+            font-size: 1rem;
+        }
+
+        /* ── Table des matières ─────────────────────────── */
+        .toc {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .toc-title {
+            font-family: var(--font-disp);
+            font-size: .78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: var(--muted);
+            margin-bottom: .85rem;
+        }
+
+        .toc-list {
+            list-style: none;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: .35rem .75rem;
+        }
+
+        @media(max-width:480px) {
+            .toc-list {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .toc-list li a {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            font-size: .85rem;
+            color: var(--text-sub);
+            transition: color .15s;
+        }
+
+        .toc-list li a:hover {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .toc-num {
+            font-family: var(--font-disp);
+            font-size: .65rem;
+            font-weight: 700;
+            color: var(--muted);
+            min-width: 1.4rem;
+        }
+
+        /* ── Sections ───────────────────────────────────── */
+        .guide-section {
+            margin-bottom: 3.5rem;
+            scroll-margin-top: 72px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: .85rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .section-icon {
+            font-size: 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            width: 52px;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .section-num {
+            font-size: .7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: var(--muted);
+            display: block;
+            margin-bottom: .15rem;
+        }
+
+        .section-title {
+            font-family: var(--font-disp);
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: var(--text);
+            line-height: 1.2;
+        }
+
+        .section-body {
+            font-size: .9rem;
+            color: var(--text-sub);
+            line-height: 1.75;
+        }
+
+        .section-body p {
+            margin-bottom: .85rem;
+        }
+
+        .section-body p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Tip box */
+        .tip-box {
+            display: flex;
+            align-items: flex-start;
+            gap: .65rem;
+            background: var(--accent-dim);
+            border: 1px solid rgba(74, 222, 128, .18);
+            border-radius: var(--radius-sm);
+            padding: .85rem 1rem;
+            margin: .85rem 0;
+            font-size: .85rem;
+            color: var(--text-sub);
+            line-height: 1.6;
+        }
+
+        .tip-icon {
+            font-size: 1.1rem;
+            flex-shrink: 0;
+            margin-top: .05rem;
+        }
+
+        /* Note box */
+        .note-box {
+            display: flex;
+            align-items: flex-start;
+            gap: .65rem;
+            background: rgba(56, 189, 248, .08);
+            border: 1px solid rgba(56, 189, 248, .2);
+            border-radius: var(--radius-sm);
+            padding: .85rem 1rem;
+            margin: .85rem 0;
+            font-size: .85rem;
+            color: var(--text-sub);
+            line-height: 1.6;
+        }
+
+        /* Steps list inside a section */
+        .steps-list {
+            list-style: none;
+            counter-reset: step;
+            display: flex;
+            flex-direction: column;
+            gap: .6rem;
+            margin: .85rem 0;
+        }
+
+        .steps-list li {
+            counter-increment: step;
+            display: flex;
+            align-items: flex-start;
+            gap: .75rem;
+            font-size: .88rem;
+            color: var(--text-sub);
+            line-height: 1.6;
+        }
+
+        .steps-list li::before {
+            content: counter(step);
+            background: var(--bg-card-alt);
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            min-width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .7rem;
+            font-weight: 700;
+            color: var(--accent);
+            flex-shrink: 0;
+            margin-top: .15rem;
+        }
+
+        /* Feature badges inside text */
+        .kbd {
+            display: inline-block;
+            background: var(--bg-card-alt);
+            border: 1px solid var(--border-l);
+            border-radius: 5px;
+            font-size: .75rem;
+            font-weight: 600;
+            color: var(--text);
+            padding: .05rem .4rem;
+            line-height: 1.5;
+            vertical-align: middle;
+        }
+
+        /* Screen mockup */
+        .screen-mock {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+            font-size: .82rem;
+            color: var(--text-sub);
+        }
+
+        .screen-mock-bar {
+            display: flex;
+            gap: .35rem;
+            margin-bottom: .75rem;
+        }
+
+        .screen-mock-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border-l);
+        }
+
+        /* Two-col layout for some sections */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: .85rem 0;
+        }
+
+        @media(max-width:520px) {
+            .two-col {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .mini-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: .85rem;
+        }
+
+        .mini-card-icon {
+            font-size: 1.5rem;
+            margin-bottom: .4rem;
+        }
+
+        .mini-card-title {
+            font-size: .82rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: .25rem;
+        }
+
+        .mini-card-desc {
+            font-size: .78rem;
+            color: var(--text-sub);
+            line-height: 1.55;
+        }
+
+        /* ── Section nouveautés ─────────────────────────── */
+        .whats-new-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .wn-header {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            margin-bottom: 1rem;
+        }
+
+        .wn-version-badge {
+            font-size: .7rem;
+            font-weight: 700;
+            background: rgba(245, 158, 11, .12);
+            border: 1px solid rgba(245, 158, 11, .25);
+            color: var(--accent2);
+            border-radius: 100px;
+            padding: .2rem .6rem;
+        }
+
+        .wn-title {
+            font-family: var(--font-disp);
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .wn-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: .6rem;
+        }
+
+        .wn-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: .65rem;
+            font-size: .85rem;
+            color: var(--text-sub);
+            line-height: 1.55;
+        }
+
+        .wn-li-icon {
+            font-size: 1rem;
+            flex-shrink: 0;
+            width: 1.4rem;
+            text-align: center;
+        }
+
+        /* ── Divider ─────────────────────────────────────── */
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 2.5rem 0;
+        }
+
+        /* ── Footer ─────────────────────────────────────── */
+        .site-footer {
+            border-top: 1px solid var(--border);
+            padding: 2rem 1.25rem;
+            text-align: center;
+            font-size: .78rem;
+            color: var(--muted);
+        }
+
+        .site-footer a {
+            color: var(--text-sub);
+        }
+
+        /* ── Back to top ─────────────────────────────────── */
+        .back-top {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.25rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-l);
+            color: var(--text-sub);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .3);
+            transition: color .15s, border-color .15s, transform .12s;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .25s, color .15s, transform .12s;
+        }
+
+        .back-top.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .back-top:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            text-decoration: none;
+        }
+
+        /* ── Animations ──────────────────────────────────── */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(16px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .guide-section {
+            animation: fadeUp .5s ease both;
+        }
+
+        .guide-section:nth-child(1) {
+            animation-delay: .05s;
+        }
+
+        .guide-section:nth-child(2) {
+            animation-delay: .1s;
+        }
+
+        .guide-section:nth-child(3) {
+            animation-delay: .15s;
+        }
+
+        .guide-section:nth-child(4) {
+            animation-delay: .2s;
+        }
+
+        .guide-section:nth-child(5) {
+            animation-delay: .25s;
+        }
+
+        .guide-section:nth-child(6) {
+            animation-delay: .3s;
+        }
+
+        .guide-section:nth-child(7) {
+            animation-delay: .35s;
+        }
+
+        .guide-section:nth-child(8) {
+            animation-delay: .4s;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ═══ HEADER ═══ -->
+    <header class="site-header">
+        <div class="site-header-inner">
+            <div class="logo">⚽ Sport<span class="logo-accent">Sync</span></div>
+            <span class="header-badge">Guide d'utilisation</span>
+            <a href="index.html" class="btn-try">Ouvrir l'app →</a>
+        </div>
+    </header>
+
+    <div class="page-wrap">
+
+        <!-- ═══ HERO ═══ -->
+        <section class="hero">
+            <span class="hero-emoji">📖</span>
+            <h1 class="hero-title">Guide d'utilisation<br><span>SportSync</span></h1>
+            <p class="hero-sub">Tout ce qu'il faut savoir pour organiser vos sessions de sport entre amis —
+                disponibilités, créneaux, clubs et inscriptions.</p>
+            <a href="index.html" class="hero-cta">⚽ Accéder à l'application</a>
+        </section>
+
+        <!-- ═══ FEATURES STRIP ═══ -->
+        <div class="features-strip">
+            <div class="feat-pill"><span>🗓</span> Grille de dispos</div>
+            <div class="feat-pill"><span>⏰</span> Smart Parser</div>
+            <div class="feat-pill"><span>🏟</span> Annuaire clubs</div>
+            <div class="feat-pill"><span>👥</span> Inscrits & attente</div>
+            <div class="feat-pill"><span>🔗</span> Lien partageable</div>
+            <div class="feat-pill"><span>🔁</span> Sessions récurrentes</div>
+        </div>
+
+        <!-- ═══ NOUVEAUTÉS v1.3 ═══ -->
+        <div class="whats-new-section">
+            <div class="wn-header">
+                <span class="wn-title">✨ Nouveautés</span>
+                <span class="wn-version-badge">v1.3</span>
+            </div>
+            <ul class="wn-list">
+                <li><span class="wn-li-icon">🏟</span><span>Annuaire clubs enrichi : multi-sports, installations
+                        détaillées, ...</span></li>
+                <li><span class="wn-li-icon">📍</span><span>Calcul de distance depuis votre adresse — distances à vol
+                        d'oiseau + durées de trajet voiture (OSRM).</span></li>
+                <li><span class="wn-li-icon">♥</span><span>Favoris : marquez vos clubs préférés et retrouvez-les dans un
+                        onglet dédié.</span></li>
+                <li><span class="wn-li-icon">📝</span><span>Notes personnelles locales sur chaque fiche club,
+                        sauvegardées sur votre appareil.</span></li>
+                <li><span class="wn-li-icon">🔁</span><span>Sessions récurrentes : créez automatiquement une série de
+                        séances hebdomadaires.</span></li>
+                <li><span class="wn-li-icon">👍</span><span>Votes de créneaux uniques par joueur, mémorisés en
+                        local.</span></li>
+            </ul>
+        </div>
+
+        <!-- ═══ TABLE DES MATIÈRES ═══ -->
+        <nav class="toc" aria-label="Table des matières">
+            <p class="toc-title">Sommaire</p>
+            <ol class="toc-list">
+                <li><a href="#s1"><span class="toc-num">01</span> 🏠 Tableau de bord</a></li>
+                <li><a href="#s2"><span class="toc-num">02</span> ➕ Créer une session</a></li>
+                <li><a href="#s3"><span class="toc-num">03</span> 🗓 Disponibilités</a></li>
+                <li><a href="#s4"><span class="toc-num">04</span> ⏰ Proposer des créneaux</a></li>
+                <li><a href="#s5"><span class="toc-num">05</span> 📋 Finaliser la session</a></li>
+                <li><a href="#s6"><span class="toc-num">06</span> 🏟 Annuaire des clubs</a></li>
+                <li><a href="#s7"><span class="toc-num">07</span> 🔗 Partager une session</a></li>
+                <li><a href="#s8"><span class="toc-num">08</span> ⚙️ Profil & synchronisation</a></li>
+            </ol>
+        </nav>
+
+        <!-- ═══ SECTIONS ═══ -->
+
+        <section class="guide-section" id="s1">
+            <div class="section-header">
+                <div class="section-icon">🏠</div>
+                <div>
+                    <span class="section-num">01</span>
+                    <h2 class="section-title">Tableau de bord</h2>
+                </div>
+            </div>
+            <div class="section-body">
+                <p>La page d'accueil est votre point de départ. Elle affiche toutes vos sessions de sport — passées et à
+                    venir — sous forme de cartes. Chaque carte indique le sport, le lieu, la date et le statut de la
+                    session (ouverte, complète, terminée).</p>
+                <p>Pour retrouver vos matchs sur n'importe quel appareil, entrez votre email dans le champ en haut de
+                    page. Vos sessions y seront associées et récupérées automatiquement à chaque connexion.</p>
+                <div class="tip-box">
+                    <span class="tip-icon">💡</span>
+                    <span>Tapez sur une carte de match pour accéder directement à la session et voir son avancement
+                        détaillé.</span>
+                </div>
+                <div class="two-col">
+                    <div class="mini-card">
+                        <div class="mini-card-icon">🃏</div>
+                        <div class="mini-card-title">Vue cartes</div>
+                        <div class="mini-card-desc">Affichage par défaut, toutes les sessions triées par date.</div>
+                    </div>
+                    <div class="mini-card">
+                        <div class="mini-card-icon">📅</div>
+                        <div class="mini-card-title">Vue agenda</div>
+                        <div class="mini-card-desc">Regroupement par semaine, pratique pour voir plusieurs sessions d'un
+                            coup.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <section class="guide-section" id="s2">
+            <div class="section-header">
+                <div class="section-icon">➕</div>
+                <div>
+                    <span class="section-num">02</span>
+                    <h2 class="section-title">Créer une session</h2>
+                </div>
+            </div>
+            <div class="section-body">
+                <p>Appuyez sur le bouton <span class="kbd">+</span> en bas à droite de l'écran pour créer une nouvelle
+                    session. Un identifiant unique est généré automatiquement — c'est lui qui permet à vos amis de
+                    rejoindre la même session.</p>
+                <ol class="steps-list">
+                    <li>Appuyez sur <span class="kbd">+</span> ou sur "Nouvelle session" depuis le tableau de bord.</li>
+                    <li>Renseignez vos disponibilités dans la grille (étape 1).</li>
+                    <li>Proposez ou votez sur des créneaux de terrain (étape 2).</li>
+                    <li>Finalisez les infos de la session et gérez les inscrits (étape 3).</li>
+                </ol>
+                <div class="tip-box">
+                    <span class="tip-icon">🔁</span>
+                    <span>Le bouton <span class="kbd">🔁 Session récurrente</span> depuis l'accueil génère
+                        automatiquement une série de séances hebdomadaires sur plusieurs semaines — pratique pour les
+                        entraînements réguliers.</span>
+                </div>
+                <div class="note-box">
+                    <span class="tip-icon">ℹ️</span>
+                    <span>Chaque clic sur <span class="kbd">+</span> crée une session <em>différente</em> avec un nouvel
+                        identifiant. Pour revenir à une session existante, utilisez son lien partageable ou le tableau
+                        de bord.</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <section class="guide-section" id="s3">
+            <div class="section-header">
+                <div class="section-icon">🗓</div>
+                <div>
+                    <span class="section-num">03</span>
+                    <h2 class="section-title">Disponibilités</h2>
+                </div>
+            </div>
+            <div class="section-body">
+                <p>La grille de disponibilités (étape 1) permet à chaque joueur d'indiquer ses créneaux libres sur la
+                    semaine en cours. Elle fonctionne sur le principe d'un tableau : une ligne par jour, une colonne par
+                    créneau (Matin, Après-midi, Soir).</p>
+                <p>Pour chaque cellule, trois états sont possibles :</p>
+                <div class="two-col">
+                    <div class="mini-card">
+                        <div class="mini-card-icon">✅</div>
+                        <div class="mini-card-title">Disponible</div>
+                        <div class="mini-card-desc">Ce créneau vous convient.</div>
+                    </div>
+                    <div class="mini-card">
+                        <div class="mini-card-icon">❌</div>
+                        <div class="mini-card-title">Indisponible</div>
+                        <div class="mini-card-desc">Vous êtes pris(e) à ce moment.</div>
+                    </div>
+                </div>
+                <ol class="steps-list">
+                    <li>Renseignez votre prénom dans le champ en haut de la grille.</li>
+                    <li>Sur mobile : tapez une cellule pour choisir disponible / indisponible.</li>
+                    <li>Sur desktop : survolez une cellule pour voir les boutons apparaître.</li>
+                    <li>Utilisez <span class="kbd">SEMAINE</span> ou <span class="kbd">WEEK-END</span> pour remplir
+                        plusieurs jours en une seule action.</li>
+                </ol>
+                <div class="tip-box">
+                    <span class="tip-icon">💡</span>
+                    <span>Le panneau <strong>Créneaux communs</strong> sous la grille calcule automatiquement les
+                        meilleurs moments pour tout le groupe, classés par nombre de participants disponibles.</span>
+                </div>
+                <div class="note-box">
+                    <span class="tip-icon">🔄</span>
+                    <span>Les disponibilités sont synchronisées toutes les 30 secondes. Les petits points colorés sur
+                        les cellules indiquent les réponses des autres joueurs.</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <section class="guide-section" id="s4">
+            <div class="section-header">
+                <div class="section-icon">⏰</div>
+                <div>
+                    <span class="section-num">04</span>
+                    <h2 class="section-title">Proposer des créneaux de terrain</h2>
+                </div>
+            </div>
+            <div class="section-body">
+                <p>L'étape 2 permet de proposer des créneaux concrets : date, heure, lieu et prix. Deux méthodes pour
+                    les ajouter :</p>
+                <div class="two-col">
+                    <div class="mini-card">
+                        <div class="mini-card-icon">✦</div>
+                        <div class="mini-card-title">Smart Parser</div>
+                        <div class="mini-card-desc">Collez le texte d'une annonce de réservation (copié depuis un site
+                            de terrain). L'IA extrait automatiquement les dates, horaires et prix.</div>
+                    </div>
+                    <div class="mini-card">
+                        <div class="mini-card-icon">➕</div>
+                        <div class="mini-card-title">Manuel</div>
+                        <div class="mini-card-desc">Ajoutez un créneau manuellement via le formulaire : date, début,
+                            fin, lieu, prix.</div>
+                    </div>
+                </div>
+                <p>Une fois les créneaux listés, chaque joueur peut voter <span class="kbd">👍</span> pour ceux qui lui
+                    conviennent. <strong>Un seul vote par joueur par créneau</strong> — re-cliquer annule le vote. Le
+                    score affiché reflète le nombre de joueurs ayant voté pour ce créneau.</p>
+                <div class="tip-box">
+                    <span class="tip-icon">🌤</span>
+                    <span>La météo de la semaine s'affiche sous les créneaux — cliquez sur un jour pour voir les
+                        prévisions heure par heure (températures et précipitations).</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <section class="guide-section" id="s5">
+            <div class="section-header">
+                <div class="section-icon">📋</div>
+                <div>
+                    <span class="section-num">05</span>
+                    <h2 class="section-title">Finaliser la session</h2>
+                </div>
+            </div>
+            <div class="section-body">
+                <p>L'étape 3 centralise toutes les infos de la session : lieu, date, sport, prix, adresse, lien Maps,
+                    lien de réservation et notes. Recherchez un club dans le champ dédié pour pré-remplir ces champs
+                    automatiquement.</p>
+                <p><strong>Gestion des inscrits :</strong> ajoutez les joueurs par prénom. Quand la liste est pleine
+                    (max joueurs atteint), les suivants sont automatiquement placés en liste d'attente et promus si
+                    quelqu'un se désiste.</p>
+                <div class="two-col">
+                    <div class="mini-card">
+                        <div class="mini-card-icon">📊</div>
+                        <div class="mini-card-title">Export Excel</div>
+                        <div class="mini-card-desc">Téléchargez la liste des inscrits + les infos de session en .xlsx.
+                        </div>
+                    </div>
+                    <div class="mini-card">
+                        <div class="mini-card-icon">📅</div>
+                        <div class="mini-card-title">Export Calendrier</div>
+                        <div class="mini-card-desc">Téléchargez un fichier .ics pour ajouter l'événement à Google
+                            Calendar, Apple Calendar ou Outlook.</div>
+                    </div>
+                </div>
+                <div class="tip-box">
+                    <span class="tip-icon">🏟</span>
+                    <span>Si la session est liée à un club de l'annuaire, un bouton <span class="kbd">🏟 Voir le
+                            club</span> apparaît dans les infos — il ouvre directement la fiche du club avec toutes ses
+                        informations.</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <section class="guide-section" id="s6">
+            <div class="section-header">
+                <div class="section-icon">🏟</div>
+                <div>
+                    <span class="section-num">06</span>
+                    <h2 class="section-title">Annuaire des clubs</h2>
+                </div>
+            </div>
+            <div class="section-body">
+                <p>L'onglet <span class="kbd">🏟 Clubs</span> liste tous les clubs disponibles. Filtrez par sport
+                    (Padel, Squash, Tennis, Badminton, Pickleball, Five…), recherchez par nom ou adresse, et consultez
+                    la fiche détaillée de chaque club.</p>
+                <p><strong>Chaque fiche club contient :</strong> sports pratiqués, horaires d'ouverture, tarifs, détail
+                    des installations (nombre de terrains par surface, couverts / découverts), téléphone, site web, lien
+                    Google Maps.</p>
+                <div class="two-col">
+                    <div class="mini-card">
+                        <div class="mini-card-icon">♥</div>
+                        <div class="mini-card-title">Favoris</div>
+                        <div class="mini-card-desc">Cliquez sur ♥ pour marquer un club. Retrouvez vos favoris dans
+                            l'onglet dédié — sauvegardé sur votre appareil.</div>
+                    </div>
+                    <div class="mini-card">
+                        <div class="mini-card-icon">📝</div>
+                        <div class="mini-card-title">Notes locales</div>
+                        <div class="mini-card-desc">Ajoutez vos propres notes sur un club (stationnement, contact…).
+                            Sauvegardé uniquement sur votre appareil.</div>
+                    </div>
+                </div>
+                <div class="tip-box">
+                    <span class="tip-icon">📍</span>
+                    <span>Entrez votre adresse dans la barre de recherche de distance et cliquez <span
+                            class="kbd">Valider</span> pour trier les clubs par proximité. Les durées de trajet en
+                        voiture s'affichent automatiquement.</span>
+                </div>
+                <div class="note-box">
+                    <span class="tip-icon">ℹ️</span>
+                    <span>Depuis la fiche d'un club, le bouton <span class="kbd">🏅 Organiser un match ici</span>
+                        pré-remplit automatiquement les informations de la session (lieu, sport, max joueurs…).</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <section class="guide-section" id="s7">
+            <div class="section-header">
+                <div class="section-icon">🔗</div>
+                <div>
+                    <span class="section-num">07</span>
+                    <h2 class="section-title">Partager une session</h2>
+                </div>
+            </div>
+            <div class="section-body">
+                <p>Chaque session a un lien unique. Partagez-le à vos amis pour qu'ils accèdent directement à la session
+                    et renseignent leurs disponibilités — sans inscription ni compte nécessaire.</p>
+                <ol class="steps-list">
+                    <li>Ouvrez la session (vue <span class="kbd">📋 Session</span>).</li>
+                    <li>Appuyez sur le bouton <span class="kbd">🔗</span> au-dessus du <span class="kbd">+</span>.</li>
+                    <li>Sur mobile : le partage natif s'ouvre (SMS, WhatsApp, email…).</li>
+                    <li>Sur desktop : le lien est copié dans le presse-papiers.</li>
+                </ol>
+                <div class="tip-box">
+                    <span class="tip-icon">💡</span>
+                    <span>L'URL de la page contient l'identifiant de session. Vous pouvez aussi copier directement la
+                        barre d'adresse de votre navigateur.</span>
+                </div>
+                <div class="note-box">
+                    <span class="tip-icon">🔄</span>
+                    <span>Les disponibilités se synchronisent automatiquement toutes les 30 secondes. Vos amis voient
+                        vos réponses en temps réel, et vice-versa — sans recharger la page.</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <section class="guide-section" id="s8">
+            <div class="section-header">
+                <div class="section-icon">⚙️</div>
+                <div>
+                    <span class="section-num">08</span>
+                    <h2 class="section-title">Profil & synchronisation</h2>
+                </div>
+            </div>
+            <div class="section-body">
+                <p>L'onglet <span class="kbd">⚙️ Profil</span> permet de configurer votre identité dans l'app :</p>
+                <ul class="steps-list">
+                    <li><strong>Prénom</strong> — affiché sur la grille de disponibilités pour que les autres joueurs
+                        vous reconnaissent.</li>
+                    <li><strong>Email</strong> — associe votre compte aux sessions pour les retrouver depuis n'importe
+                        quel appareil.</li>
+                </ul>
+                <p>La synchronisation s'effectue avec un Google Sheet partagé, qui sert de base de données commune pour
+                    votre groupe. Une synchro automatique a lieu à chaque ouverture de l'app.</p>
+                <div class="tip-box">
+                    <span class="tip-icon">🔄</span>
+                    <span>Le bouton <span class="kbd">Actualiser</span> dans la barre en bas de chaque page force une
+                        synchronisation manuelle immédiate — utile si vous venez de partager la session et voulez voir
+                        les réponses des autres.</span>
+                </div>
+                <div class="note-box">
+                    <span class="tip-icon">📵</span>
+                    <span>En mode hors ligne, l'app fonctionne en lecture seule. Vos modifications seront synchronisées
+                        automatiquement dès le retour de la connexion.</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <!-- ═══ CTA FINAL ═══ -->
+        <div style="text-align:center;padding:2rem 0 1rem;">
+            <p style="font-size:.9rem;color:var(--text-sub);margin-bottom:1.25rem;">Prêt à organiser votre prochaine
+                session ?</p>
+            <a href="index.html" class="hero-cta">⚽ Ouvrir SportSync</a>
+        </div>
+
+    </div><!-- /.page-wrap -->
+
+    <!-- ═══ FOOTER ═══ -->
+    <footer class="site-footer">
+        <p>SportSync · Guide d'utilisation · <a href="index.html">← Retour à l'app</a></p>
+    </footer>
+
+    <!-- Back to top -->
+    <a href="#" class="back-top" id="back-top" title="Haut de page">↑</a>
+
+    <script>
+        // Back to top
+        const $bt = document.getElementById('back-top');
+        window.addEventListener('scroll', () => {
+            $bt.classList.toggle('visible', window.scrollY > 320);
+        });
+
+        // Smooth scroll pour les liens d'ancre
+        document.querySelectorAll('a[href^="#"]').forEach(a => {
+            a.addEventListener('click', e => {
+                const target = document.querySelector(a.getAttribute('href'));
+                if (target) {
+                    e.preventDefault();
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+    </script>
+
+</body>
+
+</html>
