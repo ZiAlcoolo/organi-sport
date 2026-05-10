@@ -197,6 +197,9 @@ function showView(viewName,updateHistory){
   $('.bnav-btn').removeClass('active');
   $(`.bnav-btn[data-view="${viewName}"]`).addClass('active');
   $('#steps-nav').toggleClass('hidden',viewName!=='session');
+  // Vue tutoriel : masquer la bottom-nav et le sync-footer
+  $('#sync-footer,#fab-new-match').toggleClass('hidden', viewName==='tutorial');
+  $('.bottom-nav').toggleClass('hidden', viewName==='tutorial');
   // Bouton Partager + FAB : visibles seulement en vue session
   $('#fab-share-btn').toggleClass('hidden', viewName!=='session');
   saveNavState(viewName,state.currentStep);

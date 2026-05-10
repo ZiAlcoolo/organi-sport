@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="dispo.css" />
   <link rel="stylesheet" href="home.css" />
   <link rel="stylesheet" href="clubs.css" />
+  <link rel="stylesheet" href="tutorial.css" />
 </head>
 <body>
 
@@ -70,6 +71,7 @@
             <button class="btn btn-outline btn-new-session">➕ Nouvelle session</button>
             <button class="btn btn-outline" id="btn-new-recurring">🔁 Session récurrente</button>
             <button class="btn btn-outline" onclick="showView('clubs')">🏟 Annuaire clubs</button>
+            <button class="btn btn-outline btn-open-tutorial">📖 Guide</button>
           </div>
         </div>
       </div>
@@ -308,8 +310,37 @@
           </button>
         </div>
         <div class="card">
+          <h3 class="card-title">Aide</h3>
+          <div class="tutorial-quick-btns">
+            <button class="btn btn-outline btn-open-tutorial">📖 Voir le tutoriel</button>
+            <button class="btn btn-outline" id="btn-open-whats-new">✨ Nouveautés</button>
+          </div>
+        </div>
+        <div class="card">
           <h3 class="card-title">GAS URL</h3>
           <p style="font-size:.75rem;color:var(--text-sub);margin-bottom:.5rem">Configurée dans <code>app.js → CONFIG.GAS_URL</code></p>
+        </div>
+      </div>
+
+      <!-- ── TUTORIEL ── -->
+      <div id="view-tutorial" class="app-view hidden">
+        <div class="tutorial-header">
+          <span class="tutorial-header-title">📖 Guide d'utilisation</span>
+          <button class="btn-tuto-close" id="btn-tuto-close">Passer ✕</button>
+        </div>
+        <div class="tutorial-progress">
+          <div class="tutorial-progress-track">
+            <div class="tutorial-progress-bar" id="tutorial-progress-bar" style="width:12.5%"></div>
+          </div>
+          <div class="tutorial-progress-label" id="tutorial-step-label">1 / 8</div>
+        </div>
+        <div class="tutorial-step-area">
+          <div id="tutorial-step-content"><!-- Rempli par JS --></div>
+          <div id="tutorial-dots"></div>
+        </div>
+        <div class="tutorial-nav">
+          <button class="btn-tuto-prev hidden" id="btn-tuto-prev">← Précédent</button>
+          <button class="btn-tuto-next" id="btn-tuto-next">Suivant →</button>
         </div>
       </div>
 
@@ -461,12 +492,42 @@
     <div class="club-detail-sheet"><div id="club-detail-content"></div></div>
   </div>
 
+  <!-- ═══ POPUP BIENVENUE (bloquant) ═══ -->
+  <div id="tutorial-welcome" class="hidden">
+    <div class="welcome-card">
+      <span class="welcome-logo">⚽</span>
+      <h1 class="welcome-title">Bienvenue sur SportSync</h1>
+      <p class="welcome-sub">Organisez vos sessions de sport entre amis facilement — disponibilités, créneaux, inscriptions.</p>
+      <div class="welcome-features">
+        <div class="welcome-feat"><div class="welcome-feat-icon">🗓</div>Disponibilités</div>
+        <div class="welcome-feat"><div class="welcome-feat-icon">🏟</div>Clubs</div>
+        <div class="welcome-feat"><div class="welcome-feat-icon">👥</div>Inscrits</div>
+        <div class="welcome-feat"><div class="welcome-feat-icon">🔗</div>Partage</div>
+      </div>
+      <div class="welcome-actions">
+        <button class="btn-welcome-start" id="btn-welcome-start">📖 Découvrir l'app</button>
+        <button class="btn-welcome-skip" id="btn-welcome-skip">Passer et commencer directement</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ POPUP NOUVEAUTÉS ═══ -->
+  <div id="whats-new-popup" class="hidden">
+    <div class="wn-sheet">
+      <div class="wn-handle"></div>
+      <div class="wn-title">✨ Nouveautés</div>
+      <div class="wn-items"><!-- Rempli par JS --></div>
+      <button class="btn-wn-close" id="btn-whats-new-close">C'est parti ! 🚀</button>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
   <script src="dispo.js"></script>
   <script src="home.js"></script>
   <script src="clubs.js"></script>
   <script src="app.js"></script>
+  <script src="tutorial.js"></script>
 
   <script>
   $(document).ready(function(){
